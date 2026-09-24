@@ -1,0 +1,6 @@
+type = "executable"
+name = "app"
+language = "cxx"
+sources = ["main.cpp"]
+usage = ["math"]
+link_libraries = ["math_impl"]

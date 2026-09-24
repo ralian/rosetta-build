@@ -11,6 +11,9 @@ from rosetta_build.collect_graphviz import write_collection_dot
 from rosetta_build.target import (
     DynamicLibraryTarget,
     ExecutableTarget,
+    ModuleImplementationTarget,
+    ModuleInterfaceTarget,
+    ModulePartitionTarget,
     StaticLibraryTarget,
     Target,
     WheelTarget,
@@ -36,7 +39,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
     collect_parser = subparsers.add_parser(
         "collect",
-        help="Load and validate targets, then build source, usage, and link graphs.",
+        help=(
+            "Load and validate targets, then build source, usage, link, "
+            "and module graphs."
+        ),
     )
     collect_parser.add_argument(
         "source_tree",
@@ -84,6 +90,7 @@ def _print_collection(collection: Collection) -> None:
         sources = collection.source_graph.sources_for(name)
         usage = collection.usage_graph.dependencies_of(name)
         links = collection.link_graph.dependencies_of(name)
+        module_imports = collection.module_graph.dependencies_of(name)
         print(f"  {name} ({_target_kind(target)})")
         print(f"    config: {target.config_path}")
         print(f"    sources ({len(sources)}):")
@@ -95,8 +102,14 @@ def _print_collection(collection: Collection) -> None:
         print(f"    dynamic link libraries ({len(links)}):")
         for lib in sorted(links):
             print(f"      {lib}")
+        print(f"    module imports ({len(module_imports)}):")
+        for dep in sorted(module_imports):
+            print(f"      {dep}")
     print("dynamic link order:")
     for name in collection.link_graph.topological_order(kind="dynamic link"):
+        print(f"  {name}")
+    print("module order:")
+    for name in collection.module_graph.topological_order(kind="module"):
         print(f"  {name}")
 
 
@@ -107,6 +120,12 @@ def _target_kind(target: Target) -> str:
         return "static_library"
     if isinstance(target, DynamicLibraryTarget):
         return "dynamic_library"
+    if isinstance(target, ModuleInterfaceTarget):
+        return "module_interface"
+    if isinstance(target, ModulePartitionTarget):
+        return "module_partition"
+    if isinstance(target, ModuleImplementationTarget):
+        return "module_implementation"
     if isinstance(target, WheelTarget):
         return "wheel"
     return type(target).__name__

@@ -1,0 +1,36 @@
+digraph Collection {
+  rankdir=LR;
+  graph [fontname="Helvetica"];
+  node [fontname="Helvetica"];
+  edge [fontname="Helvetica"];
+
+  // Target nodes
+  "target:app" [label="app",shape=box,style=filled,fillcolor="#dbeafe",color="#1d4ed8"];
+  "target:math" [label="math",shape=tab,style=filled,fillcolor="#ede9fe",color="#6d28d9"];
+  "target:math_detail" [label="math_detail",shape=folder,style=filled,fillcolor="#f3e8ff",color="#7e22ce"];
+  "target:math_impl" [label="math_impl",shape=parallelogram,style=filled,fillcolor="#fae8ff",color="#a21caf"];
+
+  // Source file nodes
+  "source:apps/app/main.cpp" [label="apps/app/main.cpp",shape=note,style=filled,fillcolor="#f3f4f6",color="#9ca3af"];
+  "source:modules/math/math.cppm" [label="modules/math/math.cppm",shape=note,style=filled,fillcolor="#f3f4f6",color="#9ca3af"];
+  "source:modules/math_detail/detail.cppm" [label="modules/math_detail/detail.cppm",shape=note,style=filled,fillcolor="#f3f4f6",color="#9ca3af"];
+  "source:modules/math_impl/math.cpp" [label="modules/math_impl/math.cpp",shape=note,style=filled,fillcolor="#f3f4f6",color="#9ca3af"];
+
+  // Source edges
+  "target:app" -> "source:apps/app/main.cpp" [style=solid,color="#6b7280",arrowhead=vee];
+  "target:math" -> "source:modules/math/math.cppm" [style=solid,color="#6b7280",arrowhead=vee];
+  "target:math_detail" -> "source:modules/math_detail/detail.cppm" [style=solid,color="#6b7280",arrowhead=vee];
+  "target:math_impl" -> "source:modules/math_impl/math.cpp" [style=solid,color="#6b7280",arrowhead=vee];
+
+  // Usage edges
+  "target:app" -> "target:math" [style=dashed,color="#2563eb",arrowhead=normal];
+
+  // Static link edges
+
+  // Dynamic link edges
+
+  // Module import edges
+  "target:math_detail" -> "target:math" [style=solid,color="#7c3aed",arrowhead=normal,penwidth=1.5];
+  "target:math_impl" -> "target:math" [style=solid,color="#7c3aed",arrowhead=normal,penwidth=1.5];
+  "target:math_impl" -> "target:math_detail" [style=solid,color="#7c3aed",arrowhead=normal,penwidth=1.5];
+}

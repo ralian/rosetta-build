@@ -10,7 +10,7 @@ from rosetta_build.collect_graphviz import collection_to_dot
 TREES = Path(__file__).parent / "trees"
 
 # Valid trees ship a golden graph.dot for Graphviz output comparison.
-VALID_TREES = ("example", "static_link_cycle", "all_edge_types")
+VALID_TREES = ("example", "static_link_cycle", "all_edge_types", "cxx_modules")
 
 
 @pytest.mark.parametrize("tree_name", VALID_TREES)
@@ -38,12 +38,27 @@ def test_all_edge_types_uses_distinct_styles() -> None:
     assert "style=bold" in dot
 
 
+def test_cxx_modules_uses_module_styles() -> None:
+    dot = collection_to_dot(collect(TREES / "cxx_modules"))
+
+    assert 'color="#7c3aed"' in dot  # module import
+    assert "shape=tab" in dot  # module_interface
+    assert "shape=folder" in dot  # module_partition
+    assert "shape=parallelogram" in dot  # module_implementation
+    assert '"target:math_detail" -> "target:math"' in dot
+    assert '"target:math_impl" -> "target:math_detail"' in dot
+
+
 def test_graphviz_not_generated_for_invalid_trees() -> None:
     for tree_name in (
         "dynamic_link_cycle",
         "invalid_wheel",
         "unknown_link",
         "missing_pyproject",
+        "module_cycle",
+        "duplicate_module_interface",
+        "missing_module_interface",
+        "non_module_import",
     ):
         assert not (TREES / tree_name / "graph.dot").exists()
         with pytest.raises(CollectionError):

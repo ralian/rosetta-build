@@ -1,0 +1,11 @@
+[project]
+name = "cxx-modules"
+version = "0.0.0"
+
+[tool.rosetta-build]
+targets = [
+  "modules/math/target.toml",
+  "modules/math_detail/target.toml",
+  "modules/math_impl/target.toml",
+  "apps/app/target.toml",
+]

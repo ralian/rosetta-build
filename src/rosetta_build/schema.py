@@ -48,6 +48,19 @@ class _NativeTargetConfigBase(_TargetConfigBase):
         return value
 
 
+class _ModuleTargetConfigBase(_NativeTargetConfigBase):
+    language: Literal[Language.CXX] = Language.CXX
+    module: str
+    imports: list[str] = Field(default_factory=list)
+
+    @field_validator("module")
+    @classmethod
+    def _module_nonempty(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("module name must be non-empty")
+        return value
+
+
 class ExecutableTargetConfig(_NativeTargetConfigBase):
     type: Literal["executable"]
 
@@ -60,6 +73,26 @@ class DynamicLibraryTargetConfig(_NativeTargetConfigBase):
     type: Literal["dynamic_library"]
 
 
+class ModuleInterfaceTargetConfig(_ModuleTargetConfigBase):
+    type: Literal["module_interface"]
+
+
+class ModulePartitionTargetConfig(_ModuleTargetConfigBase):
+    type: Literal["module_partition"]
+    partition: str
+
+    @field_validator("partition")
+    @classmethod
+    def _partition_nonempty(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("partition name must be non-empty")
+        return value
+
+
+class ModuleImplementationTargetConfig(_ModuleTargetConfigBase):
+    type: Literal["module_implementation"]
+
+
 class WheelTargetConfig(_TargetConfigBase):
     type: Literal["wheel"]
 
@@ -68,6 +101,9 @@ TargetConfig = Annotated[
     ExecutableTargetConfig
     | StaticLibraryTargetConfig
     | DynamicLibraryTargetConfig
+    | ModuleInterfaceTargetConfig
+    | ModulePartitionTargetConfig
+    | ModuleImplementationTargetConfig
     | WheelTargetConfig,
     Field(discriminator="type"),
 ]

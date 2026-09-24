@@ -7,10 +7,13 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from rosetta_build.graph import LinkGraph, SourceGraph, UsageGraph
+from rosetta_build.graph import LinkGraph, ModuleGraph, SourceGraph, UsageGraph
 from rosetta_build.schema import (
     DynamicLibraryTargetConfig,
     ExecutableTargetConfig,
+    ModuleImplementationTargetConfig,
+    ModuleInterfaceTargetConfig,
+    ModulePartitionTargetConfig,
     RosettaBuildConfig,
     StaticLibraryTargetConfig,
     TargetConfig,
@@ -20,6 +23,10 @@ from rosetta_build.schema import (
 from rosetta_build.target import (
     DynamicLibraryTarget,
     ExecutableTarget,
+    ModuleImplementationTarget,
+    ModuleInterfaceTarget,
+    ModulePartitionTarget,
+    ModuleTarget,
     NativeTarget,
     StaticLibraryTarget,
     Target,
@@ -43,6 +50,7 @@ class Collection(BaseModel):
     source_graph: SourceGraph
     usage_graph: UsageGraph
     link_graph: LinkGraph
+    module_graph: ModuleGraph
 
 
 def collect(source_tree: Path) -> Collection:
@@ -60,12 +68,14 @@ def collect(source_tree: Path) -> Collection:
     source_graph = _build_source_graph(resolved_targets)
     usage_graph = _build_usage_graph(resolved_targets)
     link_graph = _build_link_graph(resolved_targets)
+    module_graph = _build_module_graph(resolved_targets)
     return Collection(
         source_tree=root,
         targets=resolved_targets,
         source_graph=source_graph,
         usage_graph=usage_graph,
         link_graph=link_graph,
+        module_graph=module_graph,
     )
 
 
@@ -167,6 +177,52 @@ def _resolve_target(root: Path, config_path: Path, config: TargetConfig) -> Targ
             usage=set(config.usage),
             link_libraries=set(config.link_libraries),
         )
+    if isinstance(config, ModuleInterfaceTargetConfig):
+        return ModuleInterfaceTarget(
+            name=config.name,
+            sources=sources,
+            config_path=config_path,
+            language=config.language,
+            include_dirs=include_dirs,
+            compile_defs=dict(config.compile_defs),
+            compile_opts=list(config.compile_opts),
+            link_opts=list(config.link_opts),
+            usage=set(config.usage),
+            link_libraries=set(config.link_libraries),
+            module=config.module,
+            imports=set(config.imports),
+        )
+    if isinstance(config, ModulePartitionTargetConfig):
+        return ModulePartitionTarget(
+            name=config.name,
+            sources=sources,
+            config_path=config_path,
+            language=config.language,
+            include_dirs=include_dirs,
+            compile_defs=dict(config.compile_defs),
+            compile_opts=list(config.compile_opts),
+            link_opts=list(config.link_opts),
+            usage=set(config.usage),
+            link_libraries=set(config.link_libraries),
+            module=config.module,
+            partition=config.partition,
+            imports=set(config.imports),
+        )
+    if isinstance(config, ModuleImplementationTargetConfig):
+        return ModuleImplementationTarget(
+            name=config.name,
+            sources=sources,
+            config_path=config_path,
+            language=config.language,
+            include_dirs=include_dirs,
+            compile_defs=dict(config.compile_defs),
+            compile_opts=list(config.compile_opts),
+            link_opts=list(config.link_opts),
+            usage=set(config.usage),
+            link_libraries=set(config.link_libraries),
+            module=config.module,
+            imports=set(config.imports),
+        )
     raise CollectionError(f"unsupported target type in {config_path}")
 
 
@@ -238,6 +294,59 @@ def _build_link_graph(targets: dict[str, Target]) -> LinkGraph:
     graph = LinkGraph(nodes=frozenset(targets), edges=edges)
     try:
         graph.topological_order(kind="dynamic link")
+    except ValueError as exc:
+        raise CollectionError(str(exc)) from exc
+    return graph
+
+
+def _build_module_graph(targets: dict[str, Target]) -> ModuleGraph:
+    """Build the C++ module BMI import DAG from ``imports`` on module targets.
+
+    Validates that each logical module name has exactly one primary interface,
+    and that partitions/implementations name a module that has an interface.
+    Import edges must point at other module targets.
+    """
+    interfaces_by_module: dict[str, list[str]] = {}
+    for name, target in targets.items():
+        if isinstance(target, ModuleInterfaceTarget):
+            interfaces_by_module.setdefault(target.module, []).append(name)
+
+    for module_name, providers in sorted(interfaces_by_module.items()):
+        if len(providers) > 1:
+            raise CollectionError(
+                f"logical module {module_name!r} has multiple interface targets: "
+                f"{', '.join(sorted(providers))}"
+            )
+
+    edges: dict[str, frozenset[str]] = {name: frozenset() for name in targets}
+    for name, target in targets.items():
+        if not isinstance(target, ModuleTarget):
+            continue
+
+        if (
+            not isinstance(target, ModuleInterfaceTarget)
+            and target.module not in interfaces_by_module
+        ):
+            raise CollectionError(
+                f"target {name!r} refers to logical module {target.module!r} "
+                f"which has no module_interface target"
+            )
+
+        imports = set(target.imports)
+        _validate_refs(name, imports, targets, label="module import")
+        non_module = sorted(
+            dep for dep in imports if not isinstance(targets[dep], ModuleTarget)
+        )
+        if non_module:
+            raise CollectionError(
+                f"target {name!r} module imports must name module targets; "
+                f"not module targets: {', '.join(non_module)}"
+            )
+        edges[name] = frozenset(imports)
+
+    graph = ModuleGraph(nodes=frozenset(targets), edges=edges)
+    try:
+        graph.topological_order(kind="module")
     except ValueError as exc:
         raise CollectionError(str(exc)) from exc
     return graph

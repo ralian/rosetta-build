@@ -1,0 +1,5 @@
+type = "module_interface"
+name = "iface"
+module = "iface"
+sources = ["iface.cppm"]
+imports = ["lib"]

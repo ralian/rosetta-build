@@ -1,0 +1,5 @@
+type = "module_interface"
+name = "a"
+module = "a"
+sources = ["a.cppm"]
+imports = ["b"]

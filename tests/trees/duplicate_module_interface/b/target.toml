@@ -1,0 +1,4 @@
+type = "module_interface"
+name = "b"
+module = "math"
+sources = ["b.cppm"]

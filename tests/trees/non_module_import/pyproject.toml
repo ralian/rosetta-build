@@ -1,0 +1,9 @@
+[project]
+name = "non-module-import"
+version = "0.0.0"
+
+[tool.rosetta-build]
+targets = [
+  "iface/target.toml",
+  "lib/target.toml",
+]

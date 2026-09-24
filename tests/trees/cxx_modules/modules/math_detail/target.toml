@@ -1,0 +1,6 @@
+type = "module_partition"
+name = "math_detail"
+module = "math"
+partition = "detail"
+sources = ["detail.cppm"]
+imports = ["math"]

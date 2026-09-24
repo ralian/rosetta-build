@@ -8,6 +8,9 @@ from rosetta_build.collect import Collection
 from rosetta_build.target import (
     DynamicLibraryTarget,
     ExecutableTarget,
+    ModuleImplementationTarget,
+    ModuleInterfaceTarget,
+    ModulePartitionTarget,
     NativeTarget,
     StaticLibraryTarget,
     Target,
@@ -19,10 +22,11 @@ _SOURCE_EDGE = 'style=solid,color="#6b7280",arrowhead=vee'
 _USAGE_EDGE = 'style=dashed,color="#2563eb",arrowhead=normal'
 _STATIC_LINK_EDGE = 'style=dotted,color="#16a34a",arrowhead=normal'
 _DYNAMIC_LINK_EDGE = 'style=bold,color="#dc2626",arrowhead=normal'
+_MODULE_EDGE = 'style=solid,color="#7c3aed",arrowhead=normal,penwidth=1.5'
 
 
 def collection_to_dot(collection: Collection) -> str:
-    """Return Graphviz DOT for source, usage, static-link, and dynamic-link edges."""
+    """Return Graphviz DOT for source, usage, link, and module edges."""
     root = collection.source_tree
     lines: list[str] = [
         "digraph Collection {",
@@ -94,6 +98,15 @@ def collection_to_dot(collection: Collection) -> str:
                 f"[{_DYNAMIC_LINK_EDGE}];"
             )
 
+    lines.append("")
+    lines.append("  // Module import edges")
+    for target_name in sorted(collection.module_graph.edges):
+        for dep in sorted(collection.module_graph.dependencies_of(target_name)):
+            lines.append(
+                f"  {_quote(_target_id(target_name))} -> {_quote(_target_id(dep))} "
+                f"[{_MODULE_EDGE}];"
+            )
+
     lines.append("}")
     lines.append("")
     return "\n".join(lines)
@@ -136,6 +149,12 @@ def _target_attrs(target: Target) -> str:
         return 'shape=component,style=filled,fillcolor="#dcfce7",color="#15803d"'
     if isinstance(target, DynamicLibraryTarget):
         return 'shape=hexagon,style=filled,fillcolor="#fee2e2",color="#b91c1c"'
+    if isinstance(target, ModuleInterfaceTarget):
+        return 'shape=tab,style=filled,fillcolor="#ede9fe",color="#6d28d9"'
+    if isinstance(target, ModulePartitionTarget):
+        return 'shape=folder,style=filled,fillcolor="#f3e8ff",color="#7e22ce"'
+    if isinstance(target, ModuleImplementationTarget):
+        return 'shape=parallelogram,style=filled,fillcolor="#fae8ff",color="#a21caf"'
     if isinstance(target, WheelTarget):
         return 'shape=cylinder,style=filled,fillcolor="#fef3c7",color="#b45309"'
     return "shape=ellipse"

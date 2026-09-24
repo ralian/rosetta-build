@@ -1,0 +1,4 @@
+type = "static_library"
+name = "lib"
+language = "cxx"
+sources = ["lib.cpp"]

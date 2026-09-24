@@ -5,9 +5,13 @@ from pathlib import Path
 import pytest
 
 from rosetta_build.collect import CollectionError, collect
+from rosetta_build.language import Language
 from rosetta_build.target import (
     DynamicLibraryTarget,
     ExecutableTarget,
+    ModuleImplementationTarget,
+    ModuleInterfaceTarget,
+    ModulePartitionTarget,
     StaticLibraryTarget,
     WheelTarget,
 )
@@ -49,6 +53,40 @@ def test_collect_builds_source_usage_and_link_graphs() -> None:
         "util",
         "hello",
     ]
+    assert collection.module_graph.dependencies_of("hello") == frozenset()
+
+
+def test_collect_builds_module_graph() -> None:
+    root = TREES / "cxx_modules"
+    collection = collect(root)
+
+    assert isinstance(collection.targets["math"], ModuleInterfaceTarget)
+    assert isinstance(collection.targets["math_detail"], ModulePartitionTarget)
+    assert isinstance(collection.targets["math_impl"], ModuleImplementationTarget)
+    assert isinstance(collection.targets["app"], ExecutableTarget)
+
+    math = collection.targets["math"]
+    assert isinstance(math, ModuleInterfaceTarget)
+    assert math.module == "math"
+    assert math.language is Language.CXX
+
+    detail = collection.targets["math_detail"]
+    assert isinstance(detail, ModulePartitionTarget)
+    assert detail.module == "math"
+    assert detail.partition == "detail"
+
+    assert collection.module_graph.dependencies_of("math") == frozenset()
+    assert collection.module_graph.dependencies_of("math_detail") == frozenset({"math"})
+    assert collection.module_graph.dependencies_of("math_impl") == frozenset({
+        "math",
+        "math_detail",
+    })
+    assert collection.module_graph.topological_order(kind="module") == [
+        "app",
+        "math",
+        "math_detail",
+        "math_impl",
+    ]
 
 
 def test_collect_allows_static_link_cycles() -> None:
@@ -60,6 +98,26 @@ def test_collect_allows_static_link_cycles() -> None:
 def test_collect_rejects_dynamic_link_cycle() -> None:
     with pytest.raises(CollectionError, match="dynamic link dependency cycle"):
         collect(TREES / "dynamic_link_cycle")
+
+
+def test_collect_rejects_module_cycle() -> None:
+    with pytest.raises(CollectionError, match="module dependency cycle"):
+        collect(TREES / "module_cycle")
+
+
+def test_collect_rejects_duplicate_module_interface() -> None:
+    with pytest.raises(CollectionError, match="multiple interface targets"):
+        collect(TREES / "duplicate_module_interface")
+
+
+def test_collect_rejects_missing_module_interface() -> None:
+    with pytest.raises(CollectionError, match="has no module_interface target"):
+        collect(TREES / "missing_module_interface")
+
+
+def test_collect_rejects_non_module_import() -> None:
+    with pytest.raises(CollectionError, match="must name module targets"):
+        collect(TREES / "non_module_import")
 
 
 def test_collect_rejects_native_fields_on_wheel() -> None:

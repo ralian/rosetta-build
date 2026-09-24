@@ -49,6 +49,31 @@ class DynamicLibraryTarget(NativeTarget):
 
 
 @dataclass
+class ModuleTarget(NativeTarget):
+    """C++ named-module compile unit with BMI import dependencies."""
+
+    module: str = ""
+    imports: set[str] = field(default_factory=set)
+
+
+@dataclass
+class ModuleInterfaceTarget(ModuleTarget):
+    """Primary module interface unit (``export module M``)."""
+
+
+@dataclass
+class ModulePartitionTarget(ModuleTarget):
+    """Module partition interface unit (``export module M:part``)."""
+
+    partition: str = ""
+
+
+@dataclass
+class ModuleImplementationTarget(ModuleTarget):
+    """Module implementation unit (``module M;``)."""
+
+
+@dataclass
 class WheelTarget(Target):
     """Python wheel artifact: name and sources only."""
 

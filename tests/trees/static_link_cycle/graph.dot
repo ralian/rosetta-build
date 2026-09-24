@@ -17,4 +17,6 @@ digraph Collection {
   "target:b" -> "target:a" [style=dotted,color="#16a34a",arrowhead=normal];
 
   // Dynamic link edges
+
+  // Module import edges
 }
