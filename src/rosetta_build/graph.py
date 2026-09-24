@@ -1,4 +1,4 @@
-"""Source and link dependency graphs built during collection."""
+"""Source, usage, and link dependency graphs built during collection."""
 
 from __future__ import annotations
 
@@ -18,8 +18,8 @@ class SourceGraph(BaseModel):
         return self.edges.get(target, frozenset())
 
 
-class LinkGraph(BaseModel):
-    """Directed edges from each target to the targets it links against."""
+class TargetDepGraph(BaseModel):
+    """Directed target-to-target dependency graph."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -29,8 +29,8 @@ class LinkGraph(BaseModel):
     def dependencies_of(self, target: str) -> frozenset[str]:
         return self.edges.get(target, frozenset())
 
-    def topological_order(self) -> list[str]:
-        """Return targets in link order (dependencies before dependents).
+    def topological_order(self, *, kind: str = "dependency") -> list[str]:
+        """Return targets with dependencies before dependents.
 
         Raises:
             ValueError: if the graph contains a cycle.
@@ -55,5 +55,15 @@ class LinkGraph(BaseModel):
 
         if len(order) != len(in_degree):
             remaining = sorted(node for node, degree in in_degree.items() if degree > 0)
-            raise ValueError(f"link dependency cycle involving: {', '.join(remaining)}")
+            raise ValueError(
+                f"{kind} dependency cycle involving: {', '.join(remaining)}"
+            )
         return order
+
+
+class UsageGraph(TargetDepGraph):
+    """Usage/interface dependencies between targets; cycles are allowed."""
+
+
+class LinkGraph(TargetDepGraph):
+    """Hard dynamic-link dependencies; must form a DAG."""

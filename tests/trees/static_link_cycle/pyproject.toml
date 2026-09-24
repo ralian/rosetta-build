@@ -1,0 +1,2 @@
+[tool.rosetta-build]
+targets = ["a/target.toml", "b/target.toml"]

@@ -1,0 +1,4 @@
+type = "dynamic_library"
+name = "plugin"
+sources = ["plugin.cpp"]
+link_libraries = ["core"]

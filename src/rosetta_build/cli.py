@@ -7,6 +7,13 @@ import sys
 from pathlib import Path
 
 from rosetta_build.collect import Collection, CollectionError, collect
+from rosetta_build.target import (
+    DynamicLibraryTarget,
+    ExecutableTarget,
+    StaticLibraryTarget,
+    Target,
+    WheelTarget,
+)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -28,7 +35,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     collect_parser = subparsers.add_parser(
         "collect",
-        help="Load and validate targets, then build source and link graphs.",
+        help="Load and validate targets, then build source, usage, and link graphs.",
     )
     collect_parser.add_argument(
         "source_tree",
@@ -65,15 +72,31 @@ def _print_collection(collection: Collection) -> None:
     for name in sorted(collection.targets):
         target = collection.targets[name]
         sources = collection.source_graph.sources_for(name)
+        usage = collection.usage_graph.dependencies_of(name)
         links = collection.link_graph.dependencies_of(name)
-        print(f"  {name}")
+        print(f"  {name} ({_target_kind(target)})")
         print(f"    config: {target.config_path}")
         print(f"    sources ({len(sources)}):")
         for source in sorted(sources):
             print(f"      {source.relative_to(collection.source_tree)}")
-        print(f"    link libraries ({len(links)}):")
+        print(f"    usage ({len(usage)}):")
+        for dep in sorted(usage):
+            print(f"      {dep}")
+        print(f"    dynamic link libraries ({len(links)}):")
         for lib in sorted(links):
             print(f"      {lib}")
-    print("link order:")
-    for name in collection.link_graph.topological_order():
+    print("dynamic link order:")
+    for name in collection.link_graph.topological_order(kind="dynamic link"):
         print(f"  {name}")
+
+
+def _target_kind(target: Target) -> str:
+    if isinstance(target, ExecutableTarget):
+        return "executable"
+    if isinstance(target, StaticLibraryTarget):
+        return "static_library"
+    if isinstance(target, DynamicLibraryTarget):
+        return "dynamic_library"
+    if isinstance(target, WheelTarget):
+        return "wheel"
+    return type(target).__name__

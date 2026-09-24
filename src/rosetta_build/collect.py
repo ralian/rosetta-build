@@ -5,10 +5,26 @@ from __future__ import annotations
 import tomllib
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
-from rosetta_build.graph import LinkGraph, SourceGraph
-from rosetta_build.schema import RosettaBuildConfig, TargetConfig
+from rosetta_build.graph import LinkGraph, SourceGraph, UsageGraph
+from rosetta_build.schema import (
+    DynamicLibraryTargetConfig,
+    ExecutableTargetConfig,
+    RosettaBuildConfig,
+    StaticLibraryTargetConfig,
+    TargetConfig,
+    WheelTargetConfig,
+    parse_target_config,
+)
+from rosetta_build.target import (
+    DynamicLibraryTarget,
+    ExecutableTarget,
+    NativeTarget,
+    StaticLibraryTarget,
+    Target,
+    WheelTarget,
+)
 
 TOOL_TABLE = "rosetta-build"
 
@@ -17,28 +33,15 @@ class CollectionError(Exception):
     """Raised when collection fails due to invalid config or references."""
 
 
-class ResolvedTarget(BaseModel):
-    """A validated target with paths resolved under the source tree."""
-
-    model_config = ConfigDict(frozen=True)
-
-    name: str
-    config_path: Path
-    sources: frozenset[Path]
-    include_dirs: frozenset[Path]
-    compile_defs: dict[str, str | bool | int] = Field(default_factory=dict)
-    compile_opts: tuple[str, ...] = ()
-    link_libraries: tuple[str, ...] = ()
-
-
 class Collection(BaseModel):
     """Result of collecting and validating a source tree."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
     source_tree: Path
-    targets: dict[str, ResolvedTarget]
+    targets: dict[str, Target]
     source_graph: SourceGraph
+    usage_graph: UsageGraph
     link_graph: LinkGraph
 
 
@@ -55,11 +58,13 @@ def collect(source_tree: Path) -> Collection:
     tool_config = _load_tool_config(pyproject)
     resolved_targets = _load_targets(root, tool_config.targets)
     source_graph = _build_source_graph(resolved_targets)
+    usage_graph = _build_usage_graph(resolved_targets)
     link_graph = _build_link_graph(resolved_targets)
     return Collection(
         source_tree=root,
         targets=resolved_targets,
         source_graph=source_graph,
+        usage_graph=usage_graph,
         link_graph=link_graph,
     )
 
@@ -79,13 +84,13 @@ def _load_tool_config(pyproject: Path) -> RosettaBuildConfig:
         ) from exc
 
 
-def _load_targets(root: Path, target_paths: list[Path]) -> dict[str, ResolvedTarget]:
+def _load_targets(root: Path, target_paths: list[Path]) -> dict[str, Target]:
     if not target_paths:
         raise CollectionError(
             "no target files listed under [tool.rosetta-build].targets"
         )
 
-    resolved: dict[str, ResolvedTarget] = {}
+    resolved: dict[str, Target] = {}
     for rel_path in target_paths:
         config_path = _resolve_under(root, root, rel_path, label="target config")
         if not config_path.is_file():
@@ -101,30 +106,65 @@ def _load_targets(root: Path, target_paths: list[Path]) -> dict[str, ResolvedTar
     return resolved
 
 
-def _load_target(root: Path, config_path: Path) -> ResolvedTarget:
+def _load_target(root: Path, config_path: Path) -> Target:
     raw = tomllib.loads(config_path.read_text(encoding="utf-8"))
     try:
-        config = TargetConfig.model_validate(raw)
+        config = parse_target_config(raw)
     except ValidationError as exc:
         raise CollectionError(f"invalid target config {config_path}:\n{exc}") from exc
+    return _resolve_target(root, config_path, config)
 
+
+def _resolve_target(root: Path, config_path: Path, config: TargetConfig) -> Target:
     base = config_path.parent
-    sources = frozenset(
+    sources = {
         _resolve_under(root, base, path, label="source") for path in config.sources
-    )
-    include_dirs = frozenset(
+    }
+
+    if isinstance(config, WheelTargetConfig):
+        return WheelTarget(name=config.name, sources=sources, config_path=config_path)
+
+    include_dirs = {
         _resolve_under(root, base, path, label="include dir")
         for path in config.include_dirs
-    )
-    return ResolvedTarget(
-        name=config.name,
-        config_path=config_path,
-        sources=sources,
-        include_dirs=include_dirs,
-        compile_defs=dict(config.compile_defs),
-        compile_opts=tuple(config.compile_opts),
-        link_libraries=tuple(config.link_libraries),
-    )
+    }
+    if isinstance(config, ExecutableTargetConfig):
+        return ExecutableTarget(
+            name=config.name,
+            sources=sources,
+            config_path=config_path,
+            include_dirs=include_dirs,
+            compile_defs=dict(config.compile_defs),
+            compile_opts=list(config.compile_opts),
+            link_opts=list(config.link_opts),
+            usage=set(config.usage),
+            link_libraries=set(config.link_libraries),
+        )
+    if isinstance(config, StaticLibraryTargetConfig):
+        return StaticLibraryTarget(
+            name=config.name,
+            sources=sources,
+            config_path=config_path,
+            include_dirs=include_dirs,
+            compile_defs=dict(config.compile_defs),
+            compile_opts=list(config.compile_opts),
+            link_opts=list(config.link_opts),
+            usage=set(config.usage),
+            link_libraries=set(config.link_libraries),
+        )
+    if isinstance(config, DynamicLibraryTargetConfig):
+        return DynamicLibraryTarget(
+            name=config.name,
+            sources=sources,
+            config_path=config_path,
+            include_dirs=include_dirs,
+            compile_defs=dict(config.compile_defs),
+            compile_opts=list(config.compile_opts),
+            link_opts=list(config.link_opts),
+            usage=set(config.usage),
+            link_libraries=set(config.link_libraries),
+        )
+    raise CollectionError(f"unsupported target type in {config_path}")
 
 
 def _resolve_under(root: Path, base: Path, rel: Path, *, label: str) -> Path:
@@ -138,27 +178,63 @@ def _resolve_under(root: Path, base: Path, rel: Path, *, label: str) -> Path:
     return resolved
 
 
-def _build_source_graph(targets: dict[str, ResolvedTarget]) -> SourceGraph:
+def _build_source_graph(targets: dict[str, Target]) -> SourceGraph:
     return SourceGraph(
-        edges={name: target.sources for name, target in targets.items()},
+        edges={name: frozenset(target.sources) for name, target in targets.items()},
     )
 
 
-def _build_link_graph(targets: dict[str, ResolvedTarget]) -> LinkGraph:
+def _validate_refs(
+    target_name: str,
+    refs: set[str],
+    targets: dict[str, Target],
+    *,
+    label: str,
+) -> None:
+    missing = sorted(refs - targets.keys())
+    if missing:
+        raise CollectionError(
+            f"target {target_name!r} references unknown {label} targets: "
+            f"{', '.join(missing)}"
+        )
+    if target_name in refs:
+        raise CollectionError(
+            f"target {target_name!r} cannot reference itself as a {label} dependency"
+        )
+
+
+def _build_usage_graph(targets: dict[str, Target]) -> UsageGraph:
     edges: dict[str, frozenset[str]] = {}
     for name, target in targets.items():
-        missing = sorted(set(target.link_libraries) - targets.keys())
-        if missing:
-            raise CollectionError(
-                f"target {name!r} links unknown libraries: {', '.join(missing)}"
-            )
-        if name in target.link_libraries:
-            raise CollectionError(f"target {name!r} cannot link against itself")
-        edges[name] = frozenset(target.link_libraries)
+        usage = target.usage if isinstance(target, NativeTarget) else set()
+        _validate_refs(name, usage, targets, label="usage")
+        edges[name] = frozenset(usage)
+    return UsageGraph(nodes=frozenset(targets), edges=edges)
+
+
+def _build_link_graph(targets: dict[str, Target]) -> LinkGraph:
+    """Build the hard dynamic-link DAG.
+
+    An edge ``A -> B`` is recorded only when ``A`` lists ``B`` in
+    ``link_libraries`` and ``B`` is a ``DynamicLibraryTarget``. Static and
+    other link refs remain on the target but are not cycle-checked here.
+    """
+    edges: dict[str, frozenset[str]] = {}
+    for name, target in targets.items():
+        link_libraries = (
+            target.link_libraries if isinstance(target, NativeTarget) else set()
+        )
+        _validate_refs(name, link_libraries, targets, label="link")
+        dynamic_deps = frozenset(
+            dep
+            for dep in link_libraries
+            if isinstance(targets[dep], DynamicLibraryTarget)
+        )
+        edges[name] = dynamic_deps
 
     graph = LinkGraph(nodes=frozenset(targets), edges=edges)
     try:
-        graph.topological_order()
+        graph.topological_order(kind="dynamic link")
     except ValueError as exc:
         raise CollectionError(str(exc)) from exc
     return graph

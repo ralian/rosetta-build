@@ -1,0 +1,2 @@
+[tool.rosetta-build]
+targets = ["python/pkg/target.toml"]

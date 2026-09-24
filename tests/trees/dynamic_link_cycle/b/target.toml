@@ -1,0 +1,3 @@
+type = "dynamic_library"
+name = "b"
+link_libraries = ["a"]

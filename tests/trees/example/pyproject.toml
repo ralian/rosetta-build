@@ -1,0 +1,12 @@
+[project]
+name = "example"
+version = "0.0.0"
+
+[tool.rosetta-build]
+targets = [
+  "libs/core/target.toml",
+  "libs/util/target.toml",
+  "libs/plugin/target.toml",
+  "apps/hello/target.toml",
+  "python/pkg/target.toml",
+]

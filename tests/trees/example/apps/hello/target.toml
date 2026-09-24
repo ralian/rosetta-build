@@ -1,0 +1,4 @@
+type = "executable"
+name = "hello"
+sources = ["main.cpp"]
+link_libraries = ["core", "plugin"]

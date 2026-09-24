@@ -1,0 +1,4 @@
+type = "wheel"
+name = "example_pkg"
+sources = ["src/example_pkg"]
+compile_opts = ["-O2"]

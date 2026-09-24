@@ -1,21 +1,18 @@
 """Pydantic schemas for root and per-target TOML configuration."""
 
+from __future__ import annotations
+
 from pathlib import Path
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator
 
 
-class TargetConfig(BaseModel):
-    """Schema for an individual target TOML file."""
-
+class _TargetConfigBase(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str
     sources: list[Path] = Field(default_factory=list)
-    include_dirs: list[Path] = Field(default_factory=list)
-    compile_defs: dict[str, str | bool | int] = Field(default_factory=dict)
-    compile_opts: list[str] = Field(default_factory=list)
-    link_libraries: list[str] = Field(default_factory=list)
 
     @field_validator("name")
     @classmethod
@@ -24,12 +21,59 @@ class TargetConfig(BaseModel):
             raise ValueError("target name must be non-empty")
         return value
 
-    @field_validator("sources", "include_dirs", mode="before")
+    @field_validator("sources", mode="before")
     @classmethod
-    def _coerce_paths(cls, value: object) -> object:
+    def _coerce_sources(cls, value: object) -> object:
         if isinstance(value, list):
             return [Path(item) for item in value]
         return value
+
+
+class _NativeTargetConfigBase(_TargetConfigBase):
+    include_dirs: list[Path] = Field(default_factory=list)
+    compile_defs: dict[str, str | bool | int] = Field(default_factory=dict)
+    compile_opts: list[str] = Field(default_factory=list)
+    link_opts: list[str] = Field(default_factory=list)
+    usage: list[str] = Field(default_factory=list)
+    link_libraries: list[str] = Field(default_factory=list)
+
+    @field_validator("include_dirs", mode="before")
+    @classmethod
+    def _coerce_include_dirs(cls, value: object) -> object:
+        if isinstance(value, list):
+            return [Path(item) for item in value]
+        return value
+
+
+class ExecutableTargetConfig(_NativeTargetConfigBase):
+    type: Literal["executable"]
+
+
+class StaticLibraryTargetConfig(_NativeTargetConfigBase):
+    type: Literal["static_library"]
+
+
+class DynamicLibraryTargetConfig(_NativeTargetConfigBase):
+    type: Literal["dynamic_library"]
+
+
+class WheelTargetConfig(_TargetConfigBase):
+    type: Literal["wheel"]
+
+
+TargetConfig = Annotated[
+    ExecutableTargetConfig
+    | StaticLibraryTargetConfig
+    | DynamicLibraryTargetConfig
+    | WheelTargetConfig,
+    Field(discriminator="type"),
+]
+
+_TARGET_CONFIG_ADAPTER: TypeAdapter[TargetConfig] = TypeAdapter(TargetConfig)
+
+
+def parse_target_config(raw: object) -> TargetConfig:
+    return _TARGET_CONFIG_ADAPTER.validate_python(raw)
 
 
 class RosettaBuildConfig(BaseModel):

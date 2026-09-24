@@ -1,0 +1,4 @@
+type = "static_library"
+name = "util"
+sources = ["util.cpp"]
+usage = ["core"]
