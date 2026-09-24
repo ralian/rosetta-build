@@ -1,4 +1,5 @@
 type = "static_library"
+language = "cxx"
 name = "static_a"
 sources = ["a.cpp"]
 usage = ["static_b"]

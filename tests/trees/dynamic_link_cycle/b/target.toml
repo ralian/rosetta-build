@@ -1,3 +1,4 @@
 type = "dynamic_library"
+language = "cxx"
 name = "b"
 link_libraries = ["a"]

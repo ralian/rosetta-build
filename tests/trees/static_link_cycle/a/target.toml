@@ -1,3 +1,4 @@
 type = "static_library"
+language = "cxx"
 name = "a"
 link_libraries = ["b"]

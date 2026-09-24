@@ -7,6 +7,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator
 
+from rosetta_build.language import Language
+
 
 class _TargetConfigBase(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -30,6 +32,7 @@ class _TargetConfigBase(BaseModel):
 
 
 class _NativeTargetConfigBase(_TargetConfigBase):
+    language: Language
     include_dirs: list[Path] = Field(default_factory=list)
     compile_defs: dict[str, str | bool | int] = Field(default_factory=dict)
     compile_opts: list[str] = Field(default_factory=list)

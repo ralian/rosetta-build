@@ -1,4 +1,5 @@
 type = "static_library"
+language = "cxx"
 name = "util"
 sources = ["util.cpp"]
 usage = ["core"]

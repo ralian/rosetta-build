@@ -8,6 +8,8 @@ from pathlib import Path
 
 from pydantic.dataclasses import dataclass
 
+from rosetta_build.language import Language
+
 
 @dataclass
 class Target:
@@ -22,6 +24,7 @@ class Target:
 class NativeTarget(Target):
     """Compiled native target with compile and link settings."""
 
+    language: Language = Language.CXX
     include_dirs: set[Path] = field(default_factory=set)
     compile_defs: dict[str, str | bool | int] = field(default_factory=dict)
     compile_opts: list[str] = field(default_factory=list)
