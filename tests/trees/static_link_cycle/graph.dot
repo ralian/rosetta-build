@@ -18,5 +18,5 @@ digraph Collection {
 
   // Dynamic link edges
 
-  // Module import edges
+  // Module import / visibility edges
 }

@@ -39,6 +39,7 @@ class _NativeTargetConfigBase(_TargetConfigBase):
     link_opts: list[str] = Field(default_factory=list)
     usage: list[str] = Field(default_factory=list)
     link_libraries: list[str] = Field(default_factory=list)
+    module_visibility: list[str] = Field(default_factory=list)
 
     @field_validator("include_dirs", mode="before")
     @classmethod

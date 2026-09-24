@@ -33,5 +33,5 @@ digraph Collection {
   // Dynamic link edges
   "target:app" -> "target:dyn" [style=bold,color="#dc2626",arrowhead=normal];
 
-  // Module import edges
+  // Module import / visibility edges
 }

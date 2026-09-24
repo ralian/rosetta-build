@@ -51,6 +51,8 @@ class Collection(BaseModel):
     usage_graph: UsageGraph
     link_graph: LinkGraph
     module_graph: ModuleGraph
+    # Target name -> logical module names it exports (``M`` or ``M:part``).
+    module_exports: dict[str, frozenset[str]]
 
 
 def collect(source_tree: Path) -> Collection:
@@ -68,7 +70,8 @@ def collect(source_tree: Path) -> Collection:
     source_graph = _build_source_graph(resolved_targets)
     usage_graph = _build_usage_graph(resolved_targets)
     link_graph = _build_link_graph(resolved_targets)
-    module_graph = _build_module_graph(resolved_targets)
+    module_exports = _module_exports_map(resolved_targets)
+    module_graph = _build_module_graph(resolved_targets, module_exports)
     return Collection(
         source_tree=root,
         targets=resolved_targets,
@@ -76,6 +79,7 @@ def collect(source_tree: Path) -> Collection:
         usage_graph=usage_graph,
         link_graph=link_graph,
         module_graph=module_graph,
+        module_exports=module_exports,
     )
 
 
@@ -150,6 +154,7 @@ def _resolve_target(root: Path, config_path: Path, config: TargetConfig) -> Targ
             link_opts=list(config.link_opts),
             usage=set(config.usage),
             link_libraries=set(config.link_libraries),
+            module_visibility=set(config.module_visibility),
         )
     if isinstance(config, StaticLibraryTargetConfig):
         return StaticLibraryTarget(
@@ -163,6 +168,7 @@ def _resolve_target(root: Path, config_path: Path, config: TargetConfig) -> Targ
             link_opts=list(config.link_opts),
             usage=set(config.usage),
             link_libraries=set(config.link_libraries),
+            module_visibility=set(config.module_visibility),
         )
     if isinstance(config, DynamicLibraryTargetConfig):
         return DynamicLibraryTarget(
@@ -176,6 +182,7 @@ def _resolve_target(root: Path, config_path: Path, config: TargetConfig) -> Targ
             link_opts=list(config.link_opts),
             usage=set(config.usage),
             link_libraries=set(config.link_libraries),
+            module_visibility=set(config.module_visibility),
         )
     if isinstance(config, ModuleInterfaceTargetConfig):
         return ModuleInterfaceTarget(
@@ -189,6 +196,7 @@ def _resolve_target(root: Path, config_path: Path, config: TargetConfig) -> Targ
             link_opts=list(config.link_opts),
             usage=set(config.usage),
             link_libraries=set(config.link_libraries),
+            module_visibility=set(config.module_visibility),
             module=config.module,
             imports=set(config.imports),
         )
@@ -204,6 +212,7 @@ def _resolve_target(root: Path, config_path: Path, config: TargetConfig) -> Targ
             link_opts=list(config.link_opts),
             usage=set(config.usage),
             link_libraries=set(config.link_libraries),
+            module_visibility=set(config.module_visibility),
             module=config.module,
             partition=config.partition,
             imports=set(config.imports),
@@ -220,6 +229,7 @@ def _resolve_target(root: Path, config_path: Path, config: TargetConfig) -> Targ
             link_opts=list(config.link_opts),
             usage=set(config.usage),
             link_libraries=set(config.link_libraries),
+            module_visibility=set(config.module_visibility),
             module=config.module,
             imports=set(config.imports),
         )
@@ -299,12 +309,32 @@ def _build_link_graph(targets: dict[str, Target]) -> LinkGraph:
     return graph
 
 
-def _build_module_graph(targets: dict[str, Target]) -> ModuleGraph:
-    """Build the C++ module BMI import DAG from ``imports`` on module targets.
+def _logical_exports(target: Target) -> frozenset[str]:
+    """Return logical module names exported by ``target`` (BMI providers only)."""
+    if isinstance(target, ModuleInterfaceTarget):
+        return frozenset({target.module})
+    if isinstance(target, ModulePartitionTarget):
+        return frozenset({f"{target.module}:{target.partition}"})
+    return frozenset()
 
-    Validates that each logical module name has exactly one primary interface,
-    and that partitions/implementations name a module that has an interface.
-    Import edges must point at other module targets.
+
+def _module_exports_map(targets: dict[str, Target]) -> dict[str, frozenset[str]]:
+    return {
+        name: exports
+        for name, target in targets.items()
+        if (exports := _logical_exports(target))
+    }
+
+
+def _build_module_graph(
+    targets: dict[str, Target],
+    module_exports: dict[str, frozenset[str]],
+) -> ModuleGraph:
+    """Build the C++ module BMI DAG from ``imports`` and ``module_visibility``.
+
+    - ``imports`` on module targets order BMI production among module units.
+    - ``module_visibility`` on any native target names exporters whose modules
+      the target may ``import`` (explicit cross-target visibility; not ``usage``).
     """
     interfaces_by_module: dict[str, list[str]] = {}
     for name, target in targets.items():
@@ -320,29 +350,45 @@ def _build_module_graph(targets: dict[str, Target]) -> ModuleGraph:
 
     edges: dict[str, frozenset[str]] = {name: frozenset() for name in targets}
     for name, target in targets.items():
-        if not isinstance(target, ModuleTarget):
-            continue
+        deps: set[str] = set()
 
-        if (
-            not isinstance(target, ModuleInterfaceTarget)
-            and target.module not in interfaces_by_module
-        ):
-            raise CollectionError(
-                f"target {name!r} refers to logical module {target.module!r} "
-                f"which has no module_interface target"
-            )
+        if isinstance(target, ModuleTarget):
+            if (
+                not isinstance(target, ModuleInterfaceTarget)
+                and target.module not in interfaces_by_module
+            ):
+                raise CollectionError(
+                    f"target {name!r} refers to logical module {target.module!r} "
+                    f"which has no module_interface target"
+                )
 
-        imports = set(target.imports)
-        _validate_refs(name, imports, targets, label="module import")
-        non_module = sorted(
-            dep for dep in imports if not isinstance(targets[dep], ModuleTarget)
-        )
-        if non_module:
-            raise CollectionError(
-                f"target {name!r} module imports must name module targets; "
-                f"not module targets: {', '.join(non_module)}"
+            imports = set(target.imports)
+            _validate_refs(name, imports, targets, label="module import")
+            non_module = sorted(
+                dep for dep in imports if not isinstance(targets[dep], ModuleTarget)
             )
-        edges[name] = frozenset(imports)
+            if non_module:
+                raise CollectionError(
+                    f"target {name!r} module imports must name module targets; "
+                    f"not module targets: {', '.join(non_module)}"
+                )
+            deps |= imports
+
+        if isinstance(target, NativeTarget):
+            visibility = set(target.module_visibility)
+            _validate_refs(name, visibility, targets, label="module visibility")
+            non_exporters = sorted(
+                dep for dep in visibility if dep not in module_exports
+            )
+            if non_exporters:
+                raise CollectionError(
+                    f"target {name!r} module_visibility must name module exporters "
+                    f"(module_interface or module_partition); "
+                    f"not exporters: {', '.join(non_exporters)}"
+                )
+            deps |= visibility
+
+        edges[name] = frozenset(deps)
 
     graph = ModuleGraph(nodes=frozenset(targets), edges=edges)
     try:

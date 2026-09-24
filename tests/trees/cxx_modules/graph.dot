@@ -23,13 +23,13 @@ digraph Collection {
   "target:math_impl" -> "source:modules/math_impl/math.cpp" [style=solid,color="#6b7280",arrowhead=vee];
 
   // Usage edges
-  "target:app" -> "target:math" [style=dashed,color="#2563eb",arrowhead=normal];
 
   // Static link edges
 
   // Dynamic link edges
 
-  // Module import edges
+  // Module import / visibility edges
+  "target:app" -> "target:math" [style=solid,color="#7c3aed",arrowhead=normal,penwidth=1.5];
   "target:math_detail" -> "target:math" [style=solid,color="#7c3aed",arrowhead=normal,penwidth=1.5];
   "target:math_impl" -> "target:math" [style=solid,color="#7c3aed",arrowhead=normal,penwidth=1.5];
   "target:math_impl" -> "target:math_detail" [style=solid,color="#7c3aed",arrowhead=normal,penwidth=1.5];

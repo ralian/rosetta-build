@@ -41,10 +41,11 @@ def test_all_edge_types_uses_distinct_styles() -> None:
 def test_cxx_modules_uses_module_styles() -> None:
     dot = collection_to_dot(collect(TREES / "cxx_modules"))
 
-    assert 'color="#7c3aed"' in dot  # module import
+    assert 'color="#7c3aed"' in dot  # module import / visibility
     assert "shape=tab" in dot  # module_interface
     assert "shape=folder" in dot  # module_partition
     assert "shape=parallelogram" in dot  # module_implementation
+    assert '"target:app" -> "target:math"' in dot
     assert '"target:math_detail" -> "target:math"' in dot
     assert '"target:math_impl" -> "target:math_detail"' in dot
 
@@ -59,6 +60,7 @@ def test_graphviz_not_generated_for_invalid_trees() -> None:
         "duplicate_module_interface",
         "missing_module_interface",
         "non_module_import",
+        "visibility_non_exporter",
     ):
         assert not (TREES / tree_name / "graph.dot").exists()
         with pytest.raises(CollectionError):

@@ -31,6 +31,8 @@ class NativeTarget(Target):
     link_opts: list[str] = field(default_factory=list)
     usage: set[str] = field(default_factory=set)
     link_libraries: set[str] = field(default_factory=set)
+    # Target names whose exported modules this target may ``import``.
+    module_visibility: set[str] = field(default_factory=set)
 
 
 @dataclass

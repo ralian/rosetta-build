@@ -99,7 +99,7 @@ def collection_to_dot(collection: Collection) -> str:
             )
 
     lines.append("")
-    lines.append("  // Module import edges")
+    lines.append("  // Module import / visibility edges")
     for target_name in sorted(collection.module_graph.edges):
         for dep in sorted(collection.module_graph.dependencies_of(target_name)):
             lines.append(

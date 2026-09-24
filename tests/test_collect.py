@@ -75,18 +75,32 @@ def test_collect_builds_module_graph() -> None:
     assert detail.module == "math"
     assert detail.partition == "detail"
 
+    app = collection.targets["app"]
+    assert isinstance(app, ExecutableTarget)
+    assert app.module_visibility == {"math"}
+
+    assert collection.module_exports == {
+        "math": frozenset({"math"}),
+        "math_detail": frozenset({"math:detail"}),
+    }
+
     assert collection.module_graph.dependencies_of("math") == frozenset()
     assert collection.module_graph.dependencies_of("math_detail") == frozenset({"math"})
     assert collection.module_graph.dependencies_of("math_impl") == frozenset({
         "math",
         "math_detail",
     })
-    assert collection.module_graph.topological_order(kind="module") == [
-        "app",
-        "math",
-        "math_detail",
-        "math_impl",
-    ]
+    assert collection.module_graph.dependencies_of("app") == frozenset({"math"})
+    order = collection.module_graph.topological_order(kind="module")
+    assert order.index("math") < order.index("app")
+    assert order.index("math") < order.index("math_detail")
+    assert order.index("math") < order.index("math_impl")
+    assert order.index("math_detail") < order.index("math_impl")
+
+
+def test_collect_rejects_module_visibility_to_non_exporter() -> None:
+    with pytest.raises(CollectionError, match="must name module exporters"):
+        collect(TREES / "visibility_non_exporter")
 
 
 def test_collect_allows_static_link_cycles() -> None:

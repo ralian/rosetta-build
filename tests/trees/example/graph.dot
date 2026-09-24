@@ -36,5 +36,5 @@ digraph Collection {
   // Dynamic link edges
   "target:hello" -> "target:plugin" [style=bold,color="#dc2626",arrowhead=normal];
 
-  // Module import edges
+  // Module import / visibility edges
 }

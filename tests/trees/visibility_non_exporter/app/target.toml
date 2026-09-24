@@ -2,5 +2,4 @@ type = "executable"
 name = "app"
 language = "cxx"
 sources = ["main.cpp"]
-module_visibility = ["math"]
-link_libraries = ["math_impl"]
+module_visibility = ["impl"]

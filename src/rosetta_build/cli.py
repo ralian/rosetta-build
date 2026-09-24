@@ -102,9 +102,14 @@ def _print_collection(collection: Collection) -> None:
         print(f"    dynamic link libraries ({len(links)}):")
         for lib in sorted(links):
             print(f"      {lib}")
-        print(f"    module imports ({len(module_imports)}):")
+        print(f"    module deps ({len(module_imports)}):")
         for dep in sorted(module_imports):
             print(f"      {dep}")
+        exports = collection.module_exports.get(name, frozenset())
+        if exports:
+            print(f"    module exports ({len(exports)}):")
+            for exported in sorted(exports):
+                print(f"      {exported}")
     print("dynamic link order:")
     for name in collection.link_graph.topological_order(kind="dynamic link"):
         print(f"  {name}")

@@ -70,4 +70,4 @@ class LinkGraph(TargetDepGraph):
 
 
 class ModuleGraph(TargetDepGraph):
-    """C++ module BMI import dependencies; must form a DAG."""
+    """C++ module BMI import / visibility dependencies; must form a DAG."""

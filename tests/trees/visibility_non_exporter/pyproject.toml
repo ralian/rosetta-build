@@ -1,0 +1,10 @@
+[project]
+name = "visibility-non-exporter"
+version = "0.0.0"
+
+[tool.rosetta-build]
+targets = [
+  "iface/target.toml",
+  "impl/target.toml",
+  "app/target.toml",
+]
