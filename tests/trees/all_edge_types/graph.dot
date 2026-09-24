@@ -1,0 +1,35 @@
+digraph Collection {
+  rankdir=LR;
+  graph [fontname="Helvetica"];
+  node [fontname="Helvetica"];
+  edge [fontname="Helvetica"];
+
+  // Target nodes
+  "target:app" [label="app",shape=box,style=filled,fillcolor="#dbeafe",color="#1d4ed8"];
+  "target:dyn" [label="dyn",shape=hexagon,style=filled,fillcolor="#fee2e2",color="#b91c1c"];
+  "target:static_a" [label="static_a",shape=component,style=filled,fillcolor="#dcfce7",color="#15803d"];
+  "target:static_b" [label="static_b",shape=component,style=filled,fillcolor="#dcfce7",color="#15803d"];
+
+  // Source file nodes
+  "source:apps/app/main.cpp" [label="apps/app/main.cpp",shape=note,style=filled,fillcolor="#f3f4f6",color="#9ca3af"];
+  "source:libs/dyn/dyn.cpp" [label="libs/dyn/dyn.cpp",shape=note,style=filled,fillcolor="#f3f4f6",color="#9ca3af"];
+  "source:libs/static_a/a.cpp" [label="libs/static_a/a.cpp",shape=note,style=filled,fillcolor="#f3f4f6",color="#9ca3af"];
+  "source:libs/static_b/b.cpp" [label="libs/static_b/b.cpp",shape=note,style=filled,fillcolor="#f3f4f6",color="#9ca3af"];
+
+  // Source edges
+  "target:app" -> "source:apps/app/main.cpp" [style=solid,color="#6b7280",arrowhead=vee];
+  "target:dyn" -> "source:libs/dyn/dyn.cpp" [style=solid,color="#6b7280",arrowhead=vee];
+  "target:static_a" -> "source:libs/static_a/a.cpp" [style=solid,color="#6b7280",arrowhead=vee];
+  "target:static_b" -> "source:libs/static_b/b.cpp" [style=solid,color="#6b7280",arrowhead=vee];
+
+  // Usage edges
+  "target:app" -> "target:static_a" [style=dashed,color="#2563eb",arrowhead=normal];
+  "target:static_a" -> "target:static_b" [style=dashed,color="#2563eb",arrowhead=normal];
+
+  // Static link edges
+  "target:app" -> "target:static_a" [style=dotted,color="#16a34a",arrowhead=normal];
+  "target:dyn" -> "target:static_a" [style=dotted,color="#16a34a",arrowhead=normal];
+
+  // Dynamic link edges
+  "target:app" -> "target:dyn" [style=bold,color="#dc2626",arrowhead=normal];
+}

@@ -1,0 +1,5 @@
+type = "executable"
+name = "app"
+sources = ["main.cpp"]
+usage = ["static_a"]
+link_libraries = ["static_a", "dyn"]

@@ -1,0 +1,4 @@
+type = "static_library"
+name = "static_a"
+sources = ["a.cpp"]
+usage = ["static_b"]

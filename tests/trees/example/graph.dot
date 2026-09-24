@@ -1,0 +1,38 @@
+digraph Collection {
+  rankdir=LR;
+  graph [fontname="Helvetica"];
+  node [fontname="Helvetica"];
+  edge [fontname="Helvetica"];
+
+  // Target nodes
+  "target:core" [label="core",shape=component,style=filled,fillcolor="#dcfce7",color="#15803d"];
+  "target:example_pkg" [label="example_pkg",shape=cylinder,style=filled,fillcolor="#fef3c7",color="#b45309"];
+  "target:hello" [label="hello",shape=box,style=filled,fillcolor="#dbeafe",color="#1d4ed8"];
+  "target:plugin" [label="plugin",shape=hexagon,style=filled,fillcolor="#fee2e2",color="#b91c1c"];
+  "target:util" [label="util",shape=component,style=filled,fillcolor="#dcfce7",color="#15803d"];
+
+  // Source file nodes
+  "source:apps/hello/main.cpp" [label="apps/hello/main.cpp",shape=note,style=filled,fillcolor="#f3f4f6",color="#9ca3af"];
+  "source:libs/core/core.cpp" [label="libs/core/core.cpp",shape=note,style=filled,fillcolor="#f3f4f6",color="#9ca3af"];
+  "source:libs/plugin/plugin.cpp" [label="libs/plugin/plugin.cpp",shape=note,style=filled,fillcolor="#f3f4f6",color="#9ca3af"];
+  "source:libs/util/util.cpp" [label="libs/util/util.cpp",shape=note,style=filled,fillcolor="#f3f4f6",color="#9ca3af"];
+  "source:python/pkg/src/example_pkg" [label="python/pkg/src/example_pkg",shape=note,style=filled,fillcolor="#f3f4f6",color="#9ca3af"];
+
+  // Source edges
+  "target:core" -> "source:libs/core/core.cpp" [style=solid,color="#6b7280",arrowhead=vee];
+  "target:example_pkg" -> "source:python/pkg/src/example_pkg" [style=solid,color="#6b7280",arrowhead=vee];
+  "target:hello" -> "source:apps/hello/main.cpp" [style=solid,color="#6b7280",arrowhead=vee];
+  "target:plugin" -> "source:libs/plugin/plugin.cpp" [style=solid,color="#6b7280",arrowhead=vee];
+  "target:util" -> "source:libs/util/util.cpp" [style=solid,color="#6b7280",arrowhead=vee];
+
+  // Usage edges
+  "target:core" -> "target:util" [style=dashed,color="#2563eb",arrowhead=normal];
+  "target:util" -> "target:core" [style=dashed,color="#2563eb",arrowhead=normal];
+
+  // Static link edges
+  "target:hello" -> "target:core" [style=dotted,color="#16a34a",arrowhead=normal];
+  "target:plugin" -> "target:core" [style=dotted,color="#16a34a",arrowhead=normal];
+
+  // Dynamic link edges
+  "target:hello" -> "target:plugin" [style=bold,color="#dc2626",arrowhead=normal];
+}

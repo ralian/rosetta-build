@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from rosetta_build.collect import Collection, CollectionError, collect
+from rosetta_build.collect_graphviz import write_collection_dot
 from rosetta_build.target import (
     DynamicLibraryTarget,
     ExecutableTarget,
@@ -42,6 +43,12 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Source tree root containing pyproject.toml.",
     )
+    collect_parser.add_argument(
+        "--graphviz",
+        type=Path,
+        metavar="OUT",
+        help="Write Graphviz DOT for the collected graphs to OUT.",
+    )
     collect_parser.set_defaults(handler=_cmd_collect)
 
     for name, help_text in (
@@ -58,6 +65,9 @@ def _build_parser() -> argparse.ArgumentParser:
 def _cmd_collect(args: argparse.Namespace) -> int:
     collection = collect(args.source_tree)
     _print_collection(collection)
+    if args.graphviz is not None:
+        write_collection_dot(collection, args.graphviz)
+        print(f"wrote graphviz: {args.graphviz}")
     return 0
 
 

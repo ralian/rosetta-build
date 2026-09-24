@@ -1,0 +1,11 @@
+[project]
+name = "all-edge-types"
+version = "0.0.0"
+
+[tool.rosetta-build]
+targets = [
+  "libs/static_a/target.toml",
+  "libs/static_b/target.toml",
+  "libs/dyn/target.toml",
+  "apps/app/target.toml",
+]

@@ -1,0 +1,20 @@
+digraph Collection {
+  rankdir=LR;
+  graph [fontname="Helvetica"];
+  node [fontname="Helvetica"];
+  edge [fontname="Helvetica"];
+
+  // Target nodes
+  "target:a" [label="a",shape=component,style=filled,fillcolor="#dcfce7",color="#15803d"];
+  "target:b" [label="b",shape=component,style=filled,fillcolor="#dcfce7",color="#15803d"];
+
+  // Source edges
+
+  // Usage edges
+
+  // Static link edges
+  "target:a" -> "target:b" [style=dotted,color="#16a34a",arrowhead=normal];
+  "target:b" -> "target:a" [style=dotted,color="#16a34a",arrowhead=normal];
+
+  // Dynamic link edges
+}
