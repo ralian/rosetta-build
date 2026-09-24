@@ -1,2 +1,3 @@
-def main() -> None:
-    print("Hello from rosetta-build!")
+from rosetta_build.cli import main
+
+__all__ = ["main"]

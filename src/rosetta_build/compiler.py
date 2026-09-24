@@ -1,37 +1,49 @@
 from abc import ABC, abstractmethod
-# from dataclasses import dataclass
 from pathlib import Path
+
 from pydantic.dataclasses import dataclass
 
-# Open questions:
-# Should these also be pydantic models?
-# Input paths should be source tree relative. How to enforce this?
-# How to handle compiler stdout/stderr... generators?
 
-
-# Parse from TOML?
-# How to handle INTERFACE?
 @dataclass
-class Target():
+class Target:
     name: str = ""
-    _sources: list[Path] = ()
-    sources: list[Path] = ()
-    _include_dirs: list[Path] = ()
-    include_dirs: list[Path] = ()
-    _compile_defs: list[Path] = ()
-    compile_defs: list[Path] = ()
-    _compile_opts: list[Path] = ()
-    compile_opts: list[Path] = ()
+    sources: set[Path] | None = None
+    include_dirs: set[Path] | None = None
+    compile_defs: dict[str, str | bool | int] | None = None
+    compile_opts: list[str] | None = None
+    link_libraries: set[str] | None = None
+
+    def __post_init__(self) -> None:
+        if self.sources is None:
+            self.sources = set()
+        if self.include_dirs is None:
+            self.include_dirs = set()
+        if self.compile_defs is None:
+            self.compile_defs = {}
+        if self.compile_opts is None:
+            self.compile_opts = []
+        if self.link_libraries is None:
+            self.link_libraries = set()
 
 
 class TargetGenerator(ABC):
     @abstractmethod
-    # What else to put here... what params would be useful?
     def __call__(self) -> Target: ...
 
 
-class BuildObject(dataclass):
-    name: Path = ""
+@dataclass
+class Project:
+    name: str = ""
+
+
+class ProjectGenerator(ABC):
+    @abstractmethod
+    def __call__(self) -> Project: ...
+
+
+@dataclass
+class BuildObject:
+    name: Path = Path()
 
 
 class Compiler(ABC):
@@ -42,8 +54,3 @@ class Compiler(ABC):
 class Linker(ABC):
     @abstractmethod
     async def link(self, objects: list[BuildObject], output: Path) -> None: ...
-
-
-# class SourceTreeTool:
-# class BuildTreeTool:
-# class InstallTreeTool:

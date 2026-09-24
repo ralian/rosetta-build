@@ -10,3 +10,12 @@ The roadmap:
 - Each compiler/linker/tool will implement an interace Rosetta defines. We will target the big three C++ compilers and rustc first.
 - Support C++ modules early on, shortly after the basic Big 3 implementation. We should encourage modules-first. Strike while the iron is hot.
 - Add some packaging and dependency resolution niceities after. Implement common package spec?
+
+## Development Checks
+
+```
+uv sync --all-groups
+uv run ruff check --fix
+uv run ruff format --preview
+uv run mypy --strict .
+```
