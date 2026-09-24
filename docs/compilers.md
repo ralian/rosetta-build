@@ -61,7 +61,9 @@ Shared work for every adapter:
 
 | Language | Unit of compile | Typical link |
 |----------|-----------------|--------------|
-| C / CXX  | One translation unit → object | Separate link of objects + libs |
+| C / CXX  | One translation unit → object (+ BMI for modules) | Separate link of objects + libs |
 | Rust     | Crate root (+ modules via rustc) | Usually folded into `rustc` / `gccrs` |
+
+`CompileRequest` carries `object_output` and optional `bmi_output` / `bmi_inputs`. Adapters with `capabilities.cxx_modules` map these to vendor flags; others raise.
 
 When adding a portable option, decide: C-only, CXX-only, Rust-only, or shared. Shared bags are fine; adapters must still type-check / raise on mismatch.

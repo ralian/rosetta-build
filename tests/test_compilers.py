@@ -28,7 +28,7 @@ def test_gcc_cxx_maps_standard_define_include_and_raw() -> None:
     compiler = get_compiler(CompilerFamily.GCC, Language.CXX)
     request = CompileRequest(
         sources=[Path("main.cpp")],
-        output=Path("main.o"),
+        object_output=Path("main.o"),
         settings=CompileSettings(
             standard=CxxStandard.CXX23,
             defines={"DEBUG": True, "VERSION": 2},
@@ -55,7 +55,7 @@ def test_clang_c_maps_c_standard() -> None:
     compiler = get_compiler(CompilerFamily.CLANG, Language.C)
     request = CompileRequest(
         sources=[Path("a.c")],
-        output=Path("a.o"),
+        object_output=Path("a.o"),
         settings=CompileSettings(standard=CStandard.C17),
     )
     assert compiler.argv_for_compile(request) == [
@@ -72,7 +72,7 @@ def test_msvc_cxx_maps_msvc_style_flags() -> None:
     compiler = get_compiler(CompilerFamily.MSVC, Language.CXX)
     request = CompileRequest(
         sources=[Path("main.cpp")],
-        output=Path("main.obj"),
+        object_output=Path("main.obj"),
         settings=CompileSettings(
             standard=CxxStandard.CXX20,
             defines={"FOO": "bar"},
@@ -109,7 +109,7 @@ def test_rustc_maps_edition_without_separate_link() -> None:
     compiler = get_compiler(CompilerFamily.RUSTC, Language.RUST)
     request = CompileRequest(
         sources=[Path("main.rs")],
-        output=Path("main"),
+        object_output=Path("main"),
         settings=CompileSettings(standard=RustEdition.E2021),
     )
     assert compiler.argv_for_compile(request) == [
@@ -126,7 +126,7 @@ def test_gccrs_maps_edition() -> None:
     compiler = get_compiler(CompilerFamily.GCCRS, Language.RUST)
     request = CompileRequest(
         sources=[Path("lib.rs")],
-        output=Path("lib.rlib"),
+        object_output=Path("lib.rlib"),
         settings=CompileSettings(standard=RustEdition.E2024, raw_flags=["-O"]),
     )
     assert compiler.argv_for_compile(request) == [
@@ -157,7 +157,7 @@ def test_wrong_standard_type_raises(
     compiler = get_compiler(family, language)
     request = CompileRequest(
         sources=[Path("src")],
-        output=Path("out"),
+        object_output=Path("out"),
         settings=CompileSettings(standard=standard),
     )
     with pytest.raises(UnsupportedCompileOption, match="does not support standard"):
@@ -168,7 +168,7 @@ def test_rustc_rejects_defines() -> None:
     compiler = get_compiler(CompilerFamily.RUSTC, Language.RUST)
     request = CompileRequest(
         sources=[Path("main.rs")],
-        output=Path("main"),
+        object_output=Path("main"),
         settings=CompileSettings(defines={"N": 1}),
     )
     with pytest.raises(UnsupportedCompileOption, match="does not support defines"):

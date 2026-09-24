@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
+from rosetta_build.compiler import CompileRequest, ModuleUnitKind
 from rosetta_build.language import CompilerFamily, Language
 from rosetta_build.options import (
     CompileSettings,
@@ -22,6 +23,7 @@ __all__ = [
     "msvc_define_flags",
     "msvc_include_flags",
     "msvc_link_flags",
+    "msvc_module_flags",
 ]
 
 
@@ -120,3 +122,34 @@ def msvc_compile_flags(
 
 def msvc_link_flags(settings: LinkSettings) -> list[str]:
     return list(settings.raw_flags)
+
+
+def msvc_module_flags(
+    request: CompileRequest,
+    *,
+    family: CompilerFamily,
+    language: Language,
+) -> list[str]:
+    """Map portable module fields to MSVC-style module argv fragments."""
+    if request.bmi_output is not None and request.module_name is None:
+        raise UnsupportedCompileOption(
+            family=family,
+            language=language,
+            key="bmi_output",
+            detail="module_name is required when emitting a BMI",
+        )
+
+    flags: list[str] = []
+    if (
+        request.module_unit is ModuleUnitKind.INTERFACE
+        or request.module_unit is ModuleUnitKind.PARTITION
+    ):
+        flags.append("/interface")
+    elif request.module_unit is ModuleUnitKind.IMPLEMENTATION:
+        pass
+
+    for bmi in request.bmi_inputs:
+        flags.append(f"/reference{bmi.module}={bmi.path}")
+    if request.bmi_output is not None:
+        flags.append(f"/ifcOutput{request.bmi_output}")
+    return flags

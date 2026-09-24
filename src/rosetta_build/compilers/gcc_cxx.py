@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+from rosetta_build.compiler import CompileRequest
 from rosetta_build.compilers._base import ArgvCompiler, ArgvLinker
-from rosetta_build.compilers._gnu import gnu_compile_flags, gnu_link_flags
+from rosetta_build.compilers._gnu import (
+    gnu_compile_flags,
+    gnu_link_flags,
+    gnu_module_flags,
+)
 from rosetta_build.language import CompilerFamily, Language
 from rosetta_build.options import CompileSettings, LinkSettings
 
@@ -26,6 +31,13 @@ class GccCxxCompiler(ArgvCompiler):
     def compile_flags(self, settings: CompileSettings) -> list[str]:
         return gnu_compile_flags(
             settings,
+            family=self.family,
+            language=self.language,
+        )
+
+    def cxx_module_flags(self, request: CompileRequest) -> list[str]:
+        return gnu_module_flags(
+            request,
             family=self.family,
             language=self.language,
         )

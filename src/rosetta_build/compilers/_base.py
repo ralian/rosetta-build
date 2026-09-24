@@ -14,7 +14,11 @@ from rosetta_build.compiler import (
     LinkResult,
 )
 from rosetta_build.language import CompilerFamily, Language
-from rosetta_build.options import CompileSettings, LinkSettings
+from rosetta_build.options import (
+    CompileSettings,
+    LinkSettings,
+    UnsupportedCompileOption,
+)
 
 __all__ = [
     "ArgvCompiler",
@@ -42,15 +46,41 @@ class ArgvCompiler(Compiler, ABC):
         return CompilerCapabilities(
             separate_link=True,
             supports_language=frozenset({self.language}),
+            cxx_modules=self.language is Language.CXX,
         )
 
     @abstractmethod
     def compile_flags(self, settings: CompileSettings) -> list[str]: ...
 
+    def cxx_module_flags(self, request: CompileRequest) -> list[str]:
+        raise UnsupportedCompileOption(
+            family=self.family,
+            language=self.language,
+            key="cxx_modules",
+            detail="C++ module argv mapping is not implemented for this adapter",
+        )
+
+    def module_compile_flags(self, request: CompileRequest) -> list[str]:
+        if not request.uses_cxx_modules():
+            return []
+        if not self.capabilities.cxx_modules:
+            raise UnsupportedCompileOption(
+                family=self.family,
+                language=self.language,
+                key="cxx_modules",
+                detail="this compiler does not support C++ modules",
+            )
+        return self.cxx_module_flags(request)
+
     def argv_for_compile(self, request: CompileRequest) -> list[str]:
-        argv = [self.executable_name, "-c", *self.compile_flags(request.settings)]
+        argv = [
+            self.executable_name,
+            "-c",
+            *self.compile_flags(request.settings),
+            *self.module_compile_flags(request),
+        ]
         argv.extend(str(path) for path in request.sources)
-        argv.extend(["-o", str(request.output)])
+        argv.extend(["-o", str(request.object_output)])
         return argv
 
     async def compile(self, request: CompileRequest) -> CompileResult:

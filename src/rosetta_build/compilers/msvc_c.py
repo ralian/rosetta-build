@@ -32,9 +32,14 @@ class MsvcCCompiler(ArgvCompiler):
         )
 
     def argv_for_compile(self, request: CompileRequest) -> list[str]:
-        argv = [self.executable_name, "/c", *self.compile_flags(request.settings)]
+        argv = [
+            self.executable_name,
+            "/c",
+            *self.compile_flags(request.settings),
+            *self.module_compile_flags(request),
+        ]
         argv.extend(str(path) for path in request.sources)
-        argv.append(f"/Fo{request.output}")
+        argv.append(f"/Fo{request.object_output}")
         return argv
 
 

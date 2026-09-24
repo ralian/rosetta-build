@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from rosetta_build.compiler import CompileRequest, LinkRequest
 from rosetta_build.compilers._base import ArgvCompiler, ArgvLinker
-from rosetta_build.compilers._msvc import msvc_compile_flags, msvc_link_flags
+from rosetta_build.compilers._msvc import (
+    msvc_compile_flags,
+    msvc_link_flags,
+    msvc_module_flags,
+)
 from rosetta_build.language import CompilerFamily, Language
 from rosetta_build.options import CompileSettings, LinkSettings
 
@@ -31,10 +35,22 @@ class MsvcCxxCompiler(ArgvCompiler):
             language=self.language,
         )
 
+    def cxx_module_flags(self, request: CompileRequest) -> list[str]:
+        return msvc_module_flags(
+            request,
+            family=self.family,
+            language=self.language,
+        )
+
     def argv_for_compile(self, request: CompileRequest) -> list[str]:
-        argv = [self.executable_name, "/c", *self.compile_flags(request.settings)]
+        argv = [
+            self.executable_name,
+            "/c",
+            *self.compile_flags(request.settings),
+            *self.module_compile_flags(request),
+        ]
         argv.extend(str(path) for path in request.sources)
-        argv.append(f"/Fo{request.output}")
+        argv.append(f"/Fo{request.object_output}")
         return argv
 
 

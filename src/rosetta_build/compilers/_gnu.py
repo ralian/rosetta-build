@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
+from rosetta_build.compiler import CompileRequest
 from rosetta_build.language import CompilerFamily, Language
 from rosetta_build.options import (
     CompileSettings,
@@ -22,6 +23,7 @@ __all__ = [
     "gnu_define_flags",
     "gnu_include_flags",
     "gnu_link_flags",
+    "gnu_module_flags",
 ]
 
 
@@ -120,3 +122,26 @@ def gnu_compile_flags(
 
 def gnu_link_flags(settings: LinkSettings) -> list[str]:
     return list(settings.raw_flags)
+
+
+def gnu_module_flags(
+    request: CompileRequest,
+    *,
+    family: CompilerFamily,
+    language: Language,
+) -> list[str]:
+    """Map portable module fields to GCC/Clang-style module argv fragments."""
+    if request.bmi_output is not None and request.module_name is None:
+        raise UnsupportedCompileOption(
+            family=family,
+            language=language,
+            key="bmi_output",
+            detail="module_name is required when emitting a BMI",
+        )
+
+    flags: list[str] = []
+    for bmi in request.bmi_inputs:
+        flags.append(f"-fmodule-file={bmi.module}={bmi.path}")
+    if request.bmi_output is not None:
+        flags.append(f"-fmodule-output={request.bmi_output}")
+    return flags
