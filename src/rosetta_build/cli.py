@@ -114,6 +114,20 @@ def _add_build_args(parser: argparse.ArgumentParser) -> None:
         choices=[family.value for family in CompilerFamily],
         help="Compiler family (default: gcc).",
     )
+    parser.add_argument(
+        "-j",
+        "--jobs",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Parallel edge jobs (default: CPU count).",
+    )
+    parser.add_argument(
+        "-B",
+        "--force",
+        action="store_true",
+        help="Rebuild all edges, ignoring freshness.",
+    )
 
 
 def _cmd_collect(args: argparse.Namespace) -> int:
@@ -127,9 +141,17 @@ def _cmd_collect(args: argparse.Namespace) -> int:
 
 def _cmd_build(args: argparse.Namespace) -> int:
     plan = _plan_from_args(args)
-    asyncio.run(run_build(plan))
-    print(f"compiled {len(plan.compile_steps)} translation unit(s)")
-    print(f"built {len(plan.wheel_steps)} wheel/sdist target(s)")
+    result = asyncio.run(run_build(plan, jobs=args.jobs, force=args.force))
+    compiles = result.compiles
+    wheels = result.wheels
+    print(
+        f"compiled {compiles.ran}/{compiles.ran + compiles.skipped} "
+        f"translation unit(s) (skipped {compiles.skipped})"
+    )
+    print(
+        f"built {wheels.ran}/{wheels.ran + wheels.skipped} "
+        f"wheel/sdist target(s) (skipped {wheels.skipped})"
+    )
     for name, path in sorted(plan.wheel_artifact_by_target.items()):
         print(f"  wheel {name}: {path}")
     for name, path in sorted(plan.sdist_artifact_by_target.items()):
@@ -139,8 +161,12 @@ def _cmd_build(args: argparse.Namespace) -> int:
 
 def _cmd_link(args: argparse.Namespace) -> int:
     plan = _plan_from_args(args)
-    asyncio.run(run_link(plan))
-    print(f"linked {len(plan.link_steps)} artifact(s)")
+    result = asyncio.run(run_link(plan, jobs=args.jobs, force=args.force))
+    links = result.links
+    print(
+        f"linked {links.ran}/{links.ran + links.skipped} "
+        f"artifact(s) (skipped {links.skipped})"
+    )
     for name, path in sorted(plan.link_artifact_by_target.items()):
         print(f"  {name}: {path}")
     return 0

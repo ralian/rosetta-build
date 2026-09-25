@@ -97,6 +97,7 @@ class CompileRequest:
     module_name: str | None = None
     module_unit: ModuleUnitKind = ModuleUnitKind.NONE
     bmi_inputs: tuple[BmiInput, ...] = ()
+    depfile: Path | None = None
 
     def expected_artifacts(self) -> tuple[CompileArtifact, ...]:
         artifacts: list[CompileArtifact] = [

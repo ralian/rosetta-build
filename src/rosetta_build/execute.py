@@ -2,12 +2,30 @@
 
 from __future__ import annotations
 
+import asyncio
+import os
+from dataclasses import dataclass
+
 from rosetta_build.compilers import get_compiler, get_linker
-from rosetta_build.plan import BuildPlan, CompileStep, LinkStep, PlanError, WheelStep
+from rosetta_build.plan import (
+    BuildPlan,
+    CompileStep,
+    LinkStep,
+    PlanError,
+    WheelStep,
+)
+from rosetta_build.schedule import (
+    BuildEdge,
+    ScheduleResult,
+    build_edges,
+    run_edges,
+)
 from rosetta_build.wheel import WheelBuildError, build_sdist, build_wheel
 
 __all__ = [
     "BuildError",
+    "BuildRunResult",
+    "LinkRunResult",
     "run_build",
     "run_link",
 ]
@@ -30,18 +48,85 @@ class BuildError(Exception):
         self.stderr = stderr
 
 
-async def run_build(plan: BuildPlan) -> None:
-    """Run compile steps, then wheel/sdist assembly, in plan order."""
-    for compile_step in plan.compile_steps:
-        await _run_compile(plan, compile_step)
-    for wheel_step in plan.wheel_steps:
-        _run_wheel(wheel_step)
+@dataclass(frozen=True, slots=True)
+class BuildRunResult:
+    """Counts from ``run_build`` (compiles then wheels)."""
+
+    compiles: ScheduleResult
+    wheels: ScheduleResult
 
 
-async def run_link(plan: BuildPlan) -> None:
-    """Run all link steps in plan order."""
-    for step in plan.link_steps:
-        await _run_link(plan, step)
+@dataclass(frozen=True, slots=True)
+class LinkRunResult:
+    """Counts from ``run_link``."""
+
+    links: ScheduleResult
+
+
+def _default_jobs(jobs: int | None) -> int:
+    if jobs is not None:
+        return jobs
+    return os.cpu_count() or 1
+
+
+async def run_build(
+    plan: BuildPlan,
+    *,
+    jobs: int | None = None,
+    force: bool = False,
+) -> BuildRunResult:
+    """Run compile and wheel edges with dirty checks and parallelism."""
+    workers = _default_jobs(jobs)
+
+    async def run_compile_edge(edge: BuildEdge) -> None:
+        assert isinstance(edge.step, CompileStep)
+        await _run_compile(plan, edge.step)
+
+    async def run_wheel_edge(edge: BuildEdge) -> None:
+        assert isinstance(edge.step, WheelStep)
+        await _run_wheel(edge.step)
+
+    compile_result = await run_edges(
+        build_edges(
+            plan, include_compile=True, include_wheel=False, include_link=False
+        ),
+        run_edge=run_compile_edge,
+        jobs=workers,
+        force=force,
+    )
+    wheel_result = await run_edges(
+        build_edges(
+            plan, include_compile=False, include_wheel=True, include_link=False
+        ),
+        run_edge=run_wheel_edge,
+        jobs=workers,
+        force=force,
+    )
+    return BuildRunResult(compiles=compile_result, wheels=wheel_result)
+
+
+async def run_link(
+    plan: BuildPlan,
+    *,
+    jobs: int | None = None,
+    force: bool = False,
+) -> LinkRunResult:
+    """Run link edges with dirty checks and parallelism."""
+    workers = _default_jobs(jobs)
+
+    async def run_link_edge(edge: BuildEdge) -> None:
+        assert isinstance(edge.step, LinkStep)
+        await _run_link(plan, edge.step)
+
+    result = await run_edges(
+        build_edges(
+            plan, include_compile=False, include_wheel=False, include_link=True
+        ),
+        run_edge=run_link_edge,
+        jobs=workers,
+        force=force,
+    )
+    return LinkRunResult(links=result)
 
 
 async def _run_compile(plan: BuildPlan, step: CompileStep) -> None:
@@ -61,15 +146,19 @@ async def _run_compile(plan: BuildPlan, step: CompileStep) -> None:
         )
 
 
-def _run_wheel(step: WheelStep) -> None:
+async def _run_wheel(step: WheelStep) -> None:
     try:
-        build_wheel(step.request)
-        build_sdist(step.request)
+        await asyncio.to_thread(_run_wheel_sync, step)
     except WheelBuildError as exc:
         raise BuildError(
             f"wheel/sdist failed for target {step.target!r}: {exc}",
             returncode=1,
         ) from exc
+
+
+def _run_wheel_sync(step: WheelStep) -> None:
+    build_wheel(step.request)
+    build_sdist(step.request)
 
 
 async def _run_link(plan: BuildPlan, step: LinkStep) -> None:

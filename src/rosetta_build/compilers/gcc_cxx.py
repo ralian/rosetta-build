@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from rosetta_build.compiler import (
     CompileRequest,
     CompileResult,
@@ -18,6 +20,7 @@ from rosetta_build.compilers._gnu import (
     gnu_link_flags,
 )
 from rosetta_build.compilers._process import run_driver
+from rosetta_build.depfile import depfile_for_object
 from rosetta_build.language import CompilerFamily, Language
 from rosetta_build.options import CompileSettings, LinkSettings
 
@@ -30,6 +33,10 @@ def _prepare_gcc_module_mapper(request: CompileRequest) -> None:
     path = gcc_module_mapper_path(request)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(gcc_module_mapper_text(request), encoding="utf-8")
+
+
+def _depfile_path(request: CompileRequest) -> Path:
+    return request.depfile or depfile_for_object(request.object_output)
 
 
 class GccCxxCompiler(ArgvCompiler):
@@ -59,10 +66,26 @@ class GccCxxCompiler(ArgvCompiler):
             language=self.language,
         )
 
+    def argv_for_compile(self, request: CompileRequest) -> list[str]:
+        depfile = _depfile_path(request)
+        argv = [
+            self.executable_name,
+            "-c",
+            *self.compile_flags(request.settings),
+            *self.module_compile_flags(request),
+            "-MD",
+            "-MF",
+            str(depfile),
+        ]
+        argv.extend(str(path) for path in request.sources)
+        argv.extend(["-o", str(request.object_output)])
+        return argv
+
     async def compile(self, request: CompileRequest) -> CompileResult:
         request.object_output.parent.mkdir(parents=True, exist_ok=True)
         if request.bmi_output is not None:
             request.bmi_output.parent.mkdir(parents=True, exist_ok=True)
+        _depfile_path(request).parent.mkdir(parents=True, exist_ok=True)
         if request.uses_cxx_modules():
             _prepare_gcc_module_mapper(request)
 

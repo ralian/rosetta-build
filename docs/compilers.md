@@ -17,7 +17,9 @@ Shared work for every adapter:
 
 - Map C/C++ standards, defines (`-D`/`-U`), includes (`-I`), and later warnings / opt / PIC / LTO from GCC docs.
 - Compile: `gcc|g++ -c … -o <obj>`; link: same driver to the artifact (or `ar` for static libs—decide and document).
-- Cover response files (`@file`) and depfiles (`-MD`/`-MF`) when the planner needs them.
+- Cover response files (`@file`) when needed.
+- Emit depfiles on compile (`-MD`/`-MF` → sidecar `.d`); the scheduler unions
+  those prerequisites into dirty checks so header edits rebuild consumers.
 - Keep C vs C++ drivers separate (`gcc` vs `g++`); do not compile `.cpp` with `gcc` unless `-x` is intentional.
 
 ## Clang (`clang` / `clang++`)

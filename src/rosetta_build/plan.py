@@ -14,6 +14,7 @@ from rosetta_build.compiler import (
     LinkRequest,
     ModuleUnitKind,
 )
+from rosetta_build.depfile import depfile_for_object
 from rosetta_build.language import CompilerFamily, Language
 from rosetta_build.metadata import MetadataError, load_project_metadata, names_match
 from rosetta_build.options import CompileSettings, CxxStandard, LinkSettings
@@ -324,6 +325,7 @@ def _compile_request(
         module_name=module_name,
         module_unit=module_unit,
         bmi_inputs=bmi_inputs,
+        depfile=depfile_for_object(object_output),
     )
 
 
