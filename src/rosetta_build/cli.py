@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import sys
 from pathlib import Path
 
 from rosetta_build.collect import Collection, CollectionError, collect
 from rosetta_build.collect_graphviz import write_collection_dot
+from rosetta_build.execute import BuildError, run_build, run_link
+from rosetta_build.language import CompilerFamily
+from rosetta_build.plan import BuildPlan, PlanError, plan_build
 from rosetta_build.target import (
     DynamicLibraryTarget,
     ExecutableTarget,
@@ -28,6 +32,14 @@ def main(argv: list[str] | None = None) -> None:
     except CollectionError as exc:
         print(f"error: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
+    except PlanError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
+    except BuildError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        if exc.stderr:
+            print(exc.stderr, file=sys.stderr, end="")
+        raise SystemExit(exc.returncode or 1) from exc
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -57,15 +69,48 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     collect_parser.set_defaults(handler=_cmd_collect)
 
-    for name, help_text in (
-        ("build", "Compile collected targets (not yet implemented)."),
-        ("link", "Link compiled objects (not yet implemented)."),
-        ("install", "Install build artifacts (not yet implemented)."),
-    ):
-        step = subparsers.add_parser(name, help=help_text)
-        step.set_defaults(handler=_cmd_not_implemented, step_name=name)
+    build_parser = subparsers.add_parser(
+        "build",
+        help="Compile collected native/module targets (GCC/g++ for now).",
+    )
+    _add_build_args(build_parser)
+    build_parser.set_defaults(handler=_cmd_build)
+
+    link_parser = subparsers.add_parser(
+        "link",
+        help="Link compiled objects into libraries and executables.",
+    )
+    _add_build_args(link_parser)
+    link_parser.set_defaults(handler=_cmd_link)
+
+    install_parser = subparsers.add_parser(
+        "install",
+        help="Install build artifacts (not yet implemented).",
+    )
+    install_parser.set_defaults(handler=_cmd_not_implemented, step_name="install")
 
     return parser
+
+
+def _add_build_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "source_tree",
+        type=Path,
+        help="Source tree root containing pyproject.toml.",
+    )
+    parser.add_argument(
+        "--build-dir",
+        type=Path,
+        default=None,
+        help="Build output directory (default: <source_tree>/build).",
+    )
+    parser.add_argument(
+        "--family",
+        type=str,
+        default=CompilerFamily.GCC.value,
+        choices=[family.value for family in CompilerFamily],
+        help="Compiler family (default: gcc).",
+    )
 
 
 def _cmd_collect(args: argparse.Namespace) -> int:
@@ -75,6 +120,34 @@ def _cmd_collect(args: argparse.Namespace) -> int:
         write_collection_dot(collection, args.graphviz)
         print(f"wrote graphviz: {args.graphviz}")
     return 0
+
+
+def _cmd_build(args: argparse.Namespace) -> int:
+    plan = _plan_from_args(args)
+    asyncio.run(run_build(plan))
+    print(f"compiled {len(plan.compile_steps)} translation unit(s)")
+    return 0
+
+
+def _cmd_link(args: argparse.Namespace) -> int:
+    plan = _plan_from_args(args)
+    asyncio.run(run_link(plan))
+    print(f"linked {len(plan.link_steps)} artifact(s)")
+    for name, path in sorted(plan.link_artifact_by_target.items()):
+        print(f"  {name}: {path}")
+    return 0
+
+
+def _plan_from_args(args: argparse.Namespace) -> BuildPlan:
+    collection = collect(args.source_tree)
+    build_dir = args.build_dir
+    if build_dir is None:
+        build_dir = collection.source_tree / "build"
+    return plan_build(
+        collection,
+        build_dir=build_dir,
+        family=CompilerFamily(args.family),
+    )
 
 
 def _cmd_not_implemented(args: argparse.Namespace) -> int:

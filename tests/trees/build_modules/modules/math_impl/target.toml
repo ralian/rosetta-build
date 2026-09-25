@@ -1,0 +1,5 @@
+type = "module_implementation"
+name = "math_impl"
+module = "math"
+sources = ["math.cpp"]
+imports = ["math"]
