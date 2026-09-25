@@ -55,7 +55,8 @@ def test_pep517_hooks_build_wheel_and_sdist(tmp_path: Path) -> None:
         with tarfile.open(sdist_dir / sdist_name, "r:gz") as tf:
             names = set(tf.getnames())
             assert "example-pkg-1.2.3/pyproject.toml" in names
-            assert "example-pkg-1.2.3/example_pkg/__init__.py" in names
+            assert "example-pkg-1.2.3/python/pkg/target.toml" in names
+            assert "example-pkg-1.2.3/python/pkg/src/example_pkg/__init__.py" in names
             pkg = tf.extractfile("example-pkg-1.2.3/PKG-INFO")
             assert pkg is not None
             assert b"Name: example_pkg" in pkg.read()

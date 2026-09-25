@@ -21,6 +21,7 @@ def test_load_project_metadata_maps_pep621_fields() -> None:
     assert meta.description is not None
     assert "Example package" in meta.description
     assert meta.description_content_type == "text/markdown"
+    assert meta.readme_file == "README.md"
     assert meta.authors[0].name == "Test Author"
     assert meta.dependencies == ("pydantic>=2",)
     assert meta.optional_dependencies["dev"] == ("pytest>=8",)

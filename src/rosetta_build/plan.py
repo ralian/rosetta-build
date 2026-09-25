@@ -186,6 +186,16 @@ def plan_build(
         sdist_out = build_dir / "sdists" / sdist_filename(dist_meta.name, version)
         wheel_artifact_by_target[name] = wheel_out
         sdist_artifact_by_target[name] = sdist_out
+        config_paths = tuple(
+            sorted({
+                path
+                for target in targets.values()
+                if (path := target.config_path) is not None
+            })
+        )
+        tree_sources = tuple(
+            sorted({source for target in targets.values() for source in target.sources})
+        )
         wheel_steps.append(
             WheelStep(
                 target=name,
@@ -194,6 +204,9 @@ def plan_build(
                     sources=tuple(sorted(target.sources)),
                     wheel_output=wheel_out,
                     sdist_output=sdist_out,
+                    source_tree=collection.source_tree,
+                    config_paths=config_paths,
+                    tree_sources=tree_sources,
                     pyproject_text=pyproject_text,
                 ),
             )

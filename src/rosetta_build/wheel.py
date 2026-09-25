@@ -38,6 +38,9 @@ class WheelRequest:
     sources: tuple[Path, ...]
     wheel_output: Path
     sdist_output: Path
+    source_tree: Path
+    config_paths: tuple[Path, ...] = ()
+    tree_sources: tuple[Path, ...] = ()
     pyproject_text: str | None = None
 
     @property
@@ -113,9 +116,31 @@ def build_wheel(request: WheelRequest) -> Path:
 
 
 def build_sdist(request: WheelRequest) -> Path:
-    """Write a source distribution tarball to ``request.sdist_output``."""
-    files = _collect_payload_files(request.sources)
-    if not files:
+    """Write a rebuildable source distribution to ``request.sdist_output``.
+
+    Layout preserves source-tree-relative paths for ``pyproject.toml`` targets,
+    configs, package sources, readme, and license files so ``collect()`` works
+    after unpack. Wheel install layout remains basename-based via ``build_wheel``.
+    """
+    if not request.sources:
+        raise WheelBuildError(
+            f"sdist {request.distribution_name!r} has no files under sources"
+        )
+    files = _collect_sdist_files(request)
+    has_source_member = False
+    for abs_path, _arcname in files:
+        resolved = abs_path.resolve()
+        for source in request.sources:
+            source = source.resolve()
+            if source.is_file() and resolved == source:
+                has_source_member = True
+                break
+            if source.is_dir() and resolved.is_relative_to(source):
+                has_source_member = True
+                break
+        if has_source_member:
+            break
+    if not has_source_member:
         raise WheelBuildError(
             f"sdist {request.distribution_name!r} has no files under sources"
         )
@@ -135,6 +160,8 @@ def build_sdist(request: WheelRequest) -> Path:
         _add_tar_bytes(tf, f"{root}/PKG-INFO", metadata.encode("utf-8"))
         _add_tar_bytes(tf, f"{root}/pyproject.toml", pyproject.encode("utf-8"))
         for abs_path, arcname in files:
+            if arcname == "pyproject.toml":
+                continue
             _add_tar_bytes(tf, f"{root}/{arcname}", abs_path.read_bytes())
 
     return output
@@ -164,6 +191,7 @@ def write_dist_info(metadata: ProjectMetadata, metadata_directory: Path) -> str:
 
 
 def _collect_payload_files(sources: Sequence[Path]) -> list[tuple[Path, str]]:
+    """Wheel payload: package dirs keyed by basename (purelib layout)."""
     collected: list[tuple[Path, str]] = []
     seen: set[str] = set()
     for source in sources:
@@ -173,11 +201,7 @@ def _collect_payload_files(sources: Sequence[Path]) -> list[tuple[Path, str]]:
             candidates = [(source, source.name)]
         elif source.is_dir():
             candidates = []
-            for path in sorted(source.rglob("*")):
-                if not path.is_file():
-                    continue
-                if _should_skip(path):
-                    continue
+            for path in _iter_source_files(source):
                 rel = path.relative_to(source).as_posix()
                 candidates.append((path, f"{source.name}/{rel}"))
         else:
@@ -191,6 +215,56 @@ def _collect_payload_files(sources: Sequence[Path]) -> list[tuple[Path, str]]:
             seen.add(arcname)
             collected.append((abs_path, arcname))
     return collected
+
+
+def _collect_sdist_files(request: WheelRequest) -> list[tuple[Path, str]]:
+    """Sdist payload: paths relative to ``source_tree`` for rebuildability."""
+    source_tree = request.source_tree.resolve()
+    collected: list[tuple[Path, str]] = []
+    seen: set[str] = set()
+
+    def add_file(path: Path) -> None:
+        path = path.resolve()
+        if not path.is_file():
+            raise WheelBuildError(f"sdist member is not a file: {path}")
+        if not path.is_relative_to(source_tree):
+            raise WheelBuildError(
+                f"sdist member escapes source tree ({source_tree}): {path}"
+            )
+        if _should_skip(path):
+            return
+        arcname = path.relative_to(source_tree).as_posix()
+        if arcname in seen:
+            return
+        seen.add(arcname)
+        collected.append((path, arcname))
+
+    def add_tree(path: Path) -> None:
+        path = path.resolve()
+        if path.is_file():
+            add_file(path)
+            return
+        if not path.is_dir():
+            raise WheelBuildError(f"sdist source does not exist: {path}")
+        for child in _iter_source_files(path):
+            add_file(child)
+
+    for config_path in request.config_paths:
+        add_file(config_path)
+    for source in request.tree_sources or request.sources:
+        add_tree(source)
+    if request.metadata.readme_file is not None:
+        add_file(source_tree / request.metadata.readme_file)
+    for license_file in request.metadata.license_files:
+        add_file(source_tree / license_file)
+
+    return collected
+
+
+def _iter_source_files(root: Path) -> list[Path]:
+    return sorted(
+        path for path in root.rglob("*") if path.is_file() and not _should_skip(path)
+    )
 
 
 def _should_skip(path: Path) -> bool:

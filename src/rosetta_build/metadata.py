@@ -46,6 +46,7 @@ class ProjectMetadata:
     summary: str | None = None
     description: str | None = None
     description_content_type: str | None = None
+    readme_file: str | None = None
     requires_python: str | None = None
     license_expression: str | None = None
     license_text: str | None = None
@@ -71,6 +72,7 @@ class ProjectMetadata:
             summary=self.summary,
             description=self.description,
             description_content_type=self.description_content_type,
+            readme_file=self.readme_file,
             requires_python=self.requires_python,
             license_expression=self.license_expression,
             license_text=self.license_text,
@@ -191,15 +193,17 @@ def _parse_project(
         )
 
     summary = _optional_str(project.get("description"))
-    description, content_type = _parse_readme(
+    description, content_type, readme_file = _parse_readme(
         project.get("readme"), source_tree=source_tree, pyproject=pyproject
     )
-    license_expression, license_text = _parse_license(
+    license_expression, license_text, license_file = _parse_license(
         project.get("license"), source_tree=source_tree, pyproject=pyproject
     )
-    license_files = _parse_license_files(
-        project.get("license-files"), pyproject=pyproject
+    license_files = list(
+        _parse_license_files(project.get("license-files"), pyproject=pyproject)
     )
+    if license_file is not None and license_file not in license_files:
+        license_files.append(license_file)
 
     return ProjectMetadata(
         name=name,
@@ -207,10 +211,11 @@ def _parse_project(
         summary=summary,
         description=description,
         description_content_type=content_type,
+        readme_file=readme_file,
         requires_python=_optional_str(project.get("requires-python")),
         license_expression=license_expression,
         license_text=license_text,
-        license_files=license_files,
+        license_files=tuple(license_files),
         authors=_parse_people(
             project.get("authors"), field="authors", pyproject=pyproject
         ),
@@ -246,14 +251,14 @@ def _parse_readme(
     *,
     source_tree: Path,
     pyproject: Path,
-) -> tuple[str | None, str | None]:
+) -> tuple[str | None, str | None, str | None]:
     if value is None:
-        return None, None
+        return None, None, None
     if isinstance(value, str):
         path = _resolve_project_path(
             source_tree, value, pyproject=pyproject, label="readme"
         )
-        return path.read_text(encoding="utf-8"), _content_type_for(path)
+        return path.read_text(encoding="utf-8"), _content_type_for(path), value
     if isinstance(value, dict):
         file_name = value.get("file")
         text = value.get("text")
@@ -265,11 +270,11 @@ def _parse_readme(
                 source_tree, file_name, pyproject=pyproject, label="readme.file"
             )
             body = path.read_text(encoding="utf-8")
-            return body, content_type or _content_type_for(path)
+            return body, content_type or _content_type_for(path), file_name
         if isinstance(text, str):
             if content_type is None:
                 raise MetadataError(f"{pyproject}: readme.text requires content-type")
-            return text, content_type
+            return text, content_type, None
     raise MetadataError(f"{pyproject}: invalid [project].readme")
 
 
@@ -278,23 +283,23 @@ def _parse_license(
     *,
     source_tree: Path,
     pyproject: Path,
-) -> tuple[str | None, str | None]:
+) -> tuple[str | None, str | None, str | None]:
     if value is None:
-        return None, None
+        return None, None, None
     if isinstance(value, str):
-        return value.strip(), None
+        return value.strip(), None, None
     if isinstance(value, dict):
         text = value.get("text")
         file_name = value.get("file")
         if text is not None and file_name is not None:
             raise MetadataError(f"{pyproject}: license cannot set both text and file")
         if isinstance(text, str):
-            return None, text
+            return None, text, None
         if isinstance(file_name, str):
             path = _resolve_project_path(
                 source_tree, file_name, pyproject=pyproject, label="license.file"
             )
-            return None, path.read_text(encoding="utf-8")
+            return None, path.read_text(encoding="utf-8"), file_name
     raise MetadataError(f"{pyproject}: invalid [project].license")
 
 
