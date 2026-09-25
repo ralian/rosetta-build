@@ -1,6 +1,6 @@
 [project]
 name = "rosetta-build"
-version = "0.1.0"
+version = "0.1.1"
 description = "Flat (non-meta) multilanguage build tool with a Python planner"
 readme = "README.md"
 license = "MIT"
@@ -39,26 +39,17 @@ Issues = "https://github.com/ralian/rosetta-build/issues"
 rosetta-build = "rosetta_build.cli:main"
 
 [build-system]
-requires = ["uv_build>=0.12.5,<0.13.0"]
-build-backend = "uv_build"
+requires = ["rosetta-build>=0.1.0"]
+build-backend = "rosetta_build.backend"
+
+[tool.rosetta-build]
+targets = ["src/target.toml"]
 
 [dependency-groups]
 dev = [
     "mypy>=2.3.1",
     "pytest>=9.1.1",
     "ruff>=0.16.8",
-]
-
-[tool.uv.build-backend]
-module-root = "src"
-module-name = "rosetta_build"
-source-exclude = [
-    "tests/**",
-    "docs/**",
-]
-wheel-exclude = [
-    "tests/**",
-    "docs/**",
 ]
 
 [tool.mypy]

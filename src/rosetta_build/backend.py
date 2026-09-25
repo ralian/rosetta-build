@@ -20,14 +20,22 @@ from rosetta_build.metadata import (
 )
 from rosetta_build.plan import BuildPlan, PlanError, plan_build
 from rosetta_build.target import WheelTarget
-from rosetta_build.wheel import write_dist_info
+from rosetta_build.wheel import (
+    WheelBuildError,
+    build_editable_wheel,
+    wheel_filename,
+    write_dist_info,
+)
 
 __all__ = [
     "BackendError",
+    "build_editable",
     "build_sdist",
     "build_wheel",
+    "get_requires_for_build_editable",
     "get_requires_for_build_sdist",
     "get_requires_for_build_wheel",
+    "prepare_metadata_for_build_editable",
     "prepare_metadata_for_build_wheel",
 ]
 
@@ -50,6 +58,13 @@ def get_requires_for_build_sdist(
     return []
 
 
+def get_requires_for_build_editable(
+    config_settings: dict[str, Any] | None = None,
+) -> list[str]:
+    del config_settings
+    return []
+
+
 def prepare_metadata_for_build_wheel(
     metadata_directory: str,
     config_settings: dict[str, Any] | None = None,
@@ -60,6 +75,13 @@ def prepare_metadata_for_build_wheel(
         return write_dist_info(metadata, Path(metadata_directory))
     except (CollectionError, MetadataError, PlanError, BackendError) as exc:
         raise BackendError(str(exc)) from exc
+
+
+def prepare_metadata_for_build_editable(
+    metadata_directory: str,
+    config_settings: dict[str, Any] | None = None,
+) -> str:
+    return prepare_metadata_for_build_wheel(metadata_directory, config_settings)
 
 
 def build_wheel(
@@ -75,6 +97,33 @@ def build_wheel(
         built = plan.wheel_artifact_by_target[target]
         return _copy_artifact(built, Path(wheel_directory))
     except (CollectionError, MetadataError, PlanError, BuildError, BackendError) as exc:
+        raise BackendError(str(exc)) from exc
+
+
+def build_editable(
+    wheel_directory: str,
+    config_settings: dict[str, Any] | None = None,
+    metadata_directory: str | None = None,
+) -> str:
+    del config_settings, metadata_directory
+    try:
+        source_tree = Path.cwd()
+        metadata = load_project_metadata(source_tree)
+        collection = collect(source_tree)
+        target = _primary_wheel_target(collection, metadata)
+        if names_match(target.name, metadata.name):
+            dist_meta = metadata
+        else:
+            dist_meta = metadata.with_name(target.name)
+        path_entries = tuple(
+            sorted({source.resolve().parent for source in target.sources})
+        )
+        output = Path(wheel_directory) / wheel_filename(
+            dist_meta.name, dist_meta.version
+        )
+        build_editable_wheel(dist_meta, path_entries=path_entries, output=output)
+        return output.name
+    except (CollectionError, MetadataError, BackendError, WheelBuildError) as exc:
         raise BackendError(str(exc)) from exc
 
 

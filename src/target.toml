@@ -1,0 +1,3 @@
+type = "wheel"
+name = "rosetta-build"
+sources = ["rosetta_build"]

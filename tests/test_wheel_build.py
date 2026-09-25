@@ -56,6 +56,7 @@ def test_build_wheel_and_sdist(tmp_path: Path) -> None:
         assert "Version: 1.2.3" in metadata
         assert "License-Expression: MIT" in metadata
         assert "example_pkg-1.2.3.dist-info/entry_points.txt" in names
+        assert "example_pkg-1.2.3.dist-info/licenses/LICENSE" in names
         wheel_text = zf.read("example_pkg-1.2.3.dist-info/WHEEL").decode()
         assert "Root-Is-Purelib: true" in wheel_text
         assert "Tag: py3-none-any" in wheel_text
@@ -65,6 +66,7 @@ def test_build_wheel_and_sdist(tmp_path: Path) -> None:
         assert "example-pkg-1.2.3/PKG-INFO" in names
         assert "example-pkg-1.2.3/pyproject.toml" in names
         assert "example-pkg-1.2.3/README.md" in names
+        assert "example-pkg-1.2.3/LICENSE" in names
         assert "example-pkg-1.2.3/python/pkg/target.toml" in names
         assert "example-pkg-1.2.3/python/pkg/src/example_pkg/__init__.py" in names
         pkg_info = tf.extractfile("example-pkg-1.2.3/PKG-INFO")
@@ -72,6 +74,7 @@ def test_build_wheel_and_sdist(tmp_path: Path) -> None:
         text = pkg_info.read().decode()
         assert "Name: example_pkg" in text
         assert "Version: 1.2.3" in text
+        assert "License-File: LICENSE" in text
 
 
 def test_sdist_round_trip_rebuilds_wheel(tmp_path: Path) -> None:

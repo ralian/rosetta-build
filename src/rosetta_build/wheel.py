@@ -16,6 +16,7 @@ from rosetta_build.metadata import ProjectMetadata, canonicalize_name
 __all__ = [
     "WheelBuildError",
     "WheelRequest",
+    "build_editable_wheel",
     "build_sdist",
     "build_wheel",
     "canonicalize_name",
@@ -90,6 +91,79 @@ def build_wheel(request: WheelRequest) -> Path:
             records.append((arcname, _hash_digest(data), str(len(data))))
 
         meta_bytes = metadata.encode("utf-8")
+        meta_name = f"{dist_info}/METADATA"
+        zf.writestr(meta_name, meta_bytes)
+        records.append((meta_name, _hash_digest(meta_bytes), str(len(meta_bytes))))
+
+        wheel_bytes = wheel_text.encode("utf-8")
+        wheel_name = f"{dist_info}/WHEEL"
+        zf.writestr(wheel_name, wheel_bytes)
+        records.append((wheel_name, _hash_digest(wheel_bytes), str(len(wheel_bytes))))
+
+        if entry_points is not None:
+            ep_bytes = entry_points.encode("utf-8")
+            ep_name = f"{dist_info}/entry_points.txt"
+            zf.writestr(ep_name, ep_bytes)
+            records.append((ep_name, _hash_digest(ep_bytes), str(len(ep_bytes))))
+
+        for license_file in request.metadata.license_files:
+            license_path = (request.source_tree / license_file).resolve()
+            if not license_path.is_file():
+                raise WheelBuildError(f"license file not found: {license_path}")
+            license_data = license_path.read_bytes()
+            license_name = f"{dist_info}/licenses/{Path(license_file).as_posix()}"
+            zf.writestr(license_name, license_data)
+            records.append((
+                license_name,
+                _hash_digest(license_data),
+                str(len(license_data)),
+            ))
+
+        record_name = f"{dist_info}/RECORD"
+        record_body = "".join(
+            f"{path},{digest},{size}\n" for path, digest, size in records
+        )
+        record_body += f"{record_name},,\n"
+        zf.writestr(record_name, record_body.encode("utf-8"))
+
+    return output
+
+
+def build_editable_wheel(
+    metadata: ProjectMetadata,
+    *,
+    path_entries: Sequence[Path],
+    output: Path,
+) -> Path:
+    """Write a PEP 660 editable wheel with a ``.pth`` pointing at ``path_entries``."""
+    if not path_entries:
+        raise WheelBuildError("editable wheel requires at least one path entry")
+
+    dist = wheel_dist_name(metadata.name)
+    version = metadata.version
+    dist_info = f"{dist}-{version}.dist-info"
+    pth_name = f"_{dist}.pth"
+    pth_body = "".join(f"{path.resolve()}\n" for path in path_entries)
+    meta_text = metadata.to_core_metadata()
+    wheel_text = (
+        "Wheel-Version: 1.0\n"
+        "Generator: rosetta-build\n"
+        "Root-Is-Purelib: true\n"
+        "Tag: py3-none-any\n"
+    )
+    entry_points = metadata.entry_points_text()
+
+    records: list[tuple[str, str, str]] = []
+    output.parent.mkdir(parents=True, exist_ok=True)
+    if output.exists():
+        output.unlink()
+
+    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        pth_bytes = pth_body.encode("utf-8")
+        zf.writestr(pth_name, pth_bytes)
+        records.append((pth_name, _hash_digest(pth_bytes), str(len(pth_bytes))))
+
+        meta_bytes = meta_text.encode("utf-8")
         meta_name = f"{dist_info}/METADATA"
         zf.writestr(meta_name, meta_bytes)
         records.append((meta_name, _hash_digest(meta_bytes), str(len(meta_bytes))))

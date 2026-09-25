@@ -44,8 +44,18 @@ def test_pep517_hooks_build_wheel_and_sdist(tmp_path: Path) -> None:
         with zipfile.ZipFile(wheel_path) as zf:
             assert "example_pkg/__init__.py" in zf.namelist()
             assert "example_pkg-1.2.3.dist-info/entry_points.txt" in zf.namelist()
+            assert "example_pkg-1.2.3.dist-info/licenses/LICENSE" in zf.namelist()
             text = zf.read("example_pkg-1.2.3.dist-info/METADATA").decode()
             assert "Requires-Dist: pydantic>=2" in text
+
+        editable_name = backend.build_editable(str(wheel_dir / "editable"))
+        assert editable_name == "example_pkg-1.2.3-py3-none-any.whl"
+        with zipfile.ZipFile(wheel_dir / "editable" / editable_name) as zf:
+            names = zf.namelist()
+            assert "_example_pkg.pth" in names
+            pth = zf.read("_example_pkg.pth").decode()
+            assert str((source / "python/pkg/src").resolve()) in pth
+            assert "example_pkg-1.2.3.dist-info/METADATA" in names
 
         sdist_name = backend.build_sdist(
             str(sdist_dir),
@@ -53,7 +63,7 @@ def test_pep517_hooks_build_wheel_and_sdist(tmp_path: Path) -> None:
         )
         assert sdist_name == "example-pkg-1.2.3.tar.gz"
         with tarfile.open(sdist_dir / sdist_name, "r:gz") as tf:
-            names = set(tf.getnames())
+            names = list(tf.getnames())
             assert "example-pkg-1.2.3/pyproject.toml" in names
             assert "example-pkg-1.2.3/python/pkg/target.toml" in names
             assert "example-pkg-1.2.3/python/pkg/src/example_pkg/__init__.py" in names
