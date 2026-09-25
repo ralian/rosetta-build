@@ -56,13 +56,26 @@ def test_cxx_compilers_advertise_module_capability() -> None:
         assert compiler.capabilities.cxx_modules is True
 
 
-@pytest.mark.parametrize("family", [CompilerFamily.GCC, CompilerFamily.CLANG])
-def test_gnu_interface_emits_object_and_bmi_flags(family: CompilerFamily) -> None:
-    compiler = get_compiler(family, Language.CXX)
+def test_gcc_interface_uses_modules_and_mapper() -> None:
+    compiler = get_compiler(CompilerFamily.GCC, Language.CXX)
     argv = compiler.argv_for_compile(_interface_request())
-    driver = "g++" if family is CompilerFamily.GCC else "clang++"
     assert argv == [
-        driver,
+        "g++",
+        "-c",
+        "-std=c++23",
+        "-fmodules",
+        "-fmodule-mapper=build/math.o.modulemap",
+        "math.cppm",
+        "-o",
+        "build/math.o",
+    ]
+
+
+def test_clang_interface_emits_object_and_bmi_flags() -> None:
+    compiler = get_compiler(CompilerFamily.CLANG, Language.CXX)
+    argv = compiler.argv_for_compile(_interface_request())
+    assert argv == [
+        "clang++",
         "-c",
         "-std=c++23",
         "-fmodule-output=build/bmi/math.pcm",
@@ -72,7 +85,7 @@ def test_gnu_interface_emits_object_and_bmi_flags(family: CompilerFamily) -> Non
     ]
 
 
-def test_gnu_consumer_passes_bmi_inputs() -> None:
+def test_gcc_consumer_passes_bmi_inputs_via_mapper() -> None:
     compiler = get_compiler(CompilerFamily.GCC, Language.CXX)
     request = CompileRequest(
         sources=[Path("app.cpp")],
@@ -84,7 +97,8 @@ def test_gnu_consumer_passes_bmi_inputs() -> None:
         "g++",
         "-c",
         "-std=c++23",
-        "-fmodule-file=math=build/bmi/math.pcm",
+        "-fmodules",
+        "-fmodule-mapper=app.o.modulemap",
         "app.cpp",
         "-o",
         "app.o",
@@ -152,12 +166,3 @@ def test_non_cxx_rejects_module_compile(
     )
     with pytest.raises(UnsupportedCompileOption, match="does not support cxx_modules"):
         compiler.argv_for_compile(request)
-
-
-def test_module_compile_execution_not_implemented_yet() -> None:
-    """Scaffold: process execution still pending; argv mapping is the surface today."""
-    import asyncio
-
-    compiler = get_compiler(CompilerFamily.GCC, Language.CXX)
-    with pytest.raises(NotImplementedError, match="process execution"):
-        asyncio.run(compiler.compile(_interface_request()))

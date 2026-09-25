@@ -17,6 +17,10 @@ from rosetta_build.options import (
 )
 
 __all__ = [
+    "gcc_module_flags",
+    "gcc_module_mapper_path",
+    "gcc_module_mapper_text",
+    "gcc_module_mappings",
     "gnu_c_standard_flag",
     "gnu_compile_flags",
     "gnu_cxx_standard_flag",
@@ -124,13 +128,12 @@ def gnu_link_flags(settings: LinkSettings) -> list[str]:
     return list(settings.raw_flags)
 
 
-def gnu_module_flags(
+def _require_module_name_for_bmi(
     request: CompileRequest,
     *,
     family: CompilerFamily,
     language: Language,
-) -> list[str]:
-    """Map portable module fields to GCC/Clang-style module argv fragments."""
+) -> None:
     if request.bmi_output is not None and request.module_name is None:
         raise UnsupportedCompileOption(
             family=family,
@@ -139,9 +142,59 @@ def gnu_module_flags(
             detail="module_name is required when emitting a BMI",
         )
 
+
+def gnu_module_flags(
+    request: CompileRequest,
+    *,
+    family: CompilerFamily,
+    language: Language,
+) -> list[str]:
+    """Map portable module fields to Clang-style module argv fragments."""
+    _require_module_name_for_bmi(request, family=family, language=language)
+
     flags: list[str] = []
     for bmi in request.bmi_inputs:
         flags.append(f"-fmodule-file={bmi.module}={bmi.path}")
     if request.bmi_output is not None:
         flags.append(f"-fmodule-output={request.bmi_output}")
+    return flags
+
+
+def gcc_module_mapper_path(request: CompileRequest) -> Path:
+    """Sidecar mapping file path for ``-fmodule-mapper=`` (GCC C++ Modules)."""
+    return request.object_output.with_suffix(
+        f"{request.object_output.suffix}.modulemap"
+    )
+
+
+def gcc_module_mappings(request: CompileRequest) -> list[tuple[str, Path]]:
+    """Module name -> CMI path pairs for a GCC module mapper file."""
+    mappings: dict[str, Path] = {bmi.module: bmi.path for bmi in request.bmi_inputs}
+    if request.bmi_output is not None and request.module_name is not None:
+        mappings[request.module_name] = request.bmi_output
+    return list(mappings.items())
+
+
+def gcc_module_mapper_text(request: CompileRequest) -> str:
+    """Space-separated module-name/filename lines for ``-fmodule-mapper=file``."""
+    lines = [f"{module} {path}" for module, path in gcc_module_mappings(request)]
+    return "\n".join(lines) + ("\n" if lines else "")
+
+
+def gcc_module_flags(
+    request: CompileRequest,
+    *,
+    family: CompilerFamily,
+    language: Language,
+) -> list[str]:
+    """Map portable module fields to GCC ``-fmodules`` / mapper argv fragments.
+
+    GCC does not accept Clang's ``-fmodule-output`` / ``-fmodule-file=name=path``.
+    CMI locations are controlled via ``-fmodule-mapper=`` (see GCC C++ Modules).
+    """
+    _require_module_name_for_bmi(request, family=family, language=language)
+
+    flags: list[str] = ["-fmodules"]
+    if gcc_module_mappings(request):
+        flags.append(f"-fmodule-mapper={gcc_module_mapper_path(request)}")
     return flags

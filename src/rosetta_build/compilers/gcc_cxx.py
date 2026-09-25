@@ -2,17 +2,34 @@
 
 from __future__ import annotations
 
-from rosetta_build.compiler import CompileRequest
+from rosetta_build.compiler import (
+    CompileRequest,
+    CompileResult,
+    LinkRequest,
+    LinkResult,
+)
 from rosetta_build.compilers._base import ArgvCompiler, ArgvLinker
 from rosetta_build.compilers._gnu import (
+    gcc_module_flags,
+    gcc_module_mapper_path,
+    gcc_module_mapper_text,
+    gcc_module_mappings,
     gnu_compile_flags,
     gnu_link_flags,
-    gnu_module_flags,
 )
+from rosetta_build.compilers._process import run_driver
 from rosetta_build.language import CompilerFamily, Language
 from rosetta_build.options import CompileSettings, LinkSettings
 
 __all__ = ["GccCxxCompiler", "GccCxxLinker"]
+
+
+def _prepare_gcc_module_mapper(request: CompileRequest) -> None:
+    if not gcc_module_mappings(request):
+        return
+    path = gcc_module_mapper_path(request)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(gcc_module_mapper_text(request), encoding="utf-8")
 
 
 class GccCxxCompiler(ArgvCompiler):
@@ -36,10 +53,26 @@ class GccCxxCompiler(ArgvCompiler):
         )
 
     def cxx_module_flags(self, request: CompileRequest) -> list[str]:
-        return gnu_module_flags(
+        return gcc_module_flags(
             request,
             family=self.family,
             language=self.language,
+        )
+
+    async def compile(self, request: CompileRequest) -> CompileResult:
+        request.object_output.parent.mkdir(parents=True, exist_ok=True)
+        if request.bmi_output is not None:
+            request.bmi_output.parent.mkdir(parents=True, exist_ok=True)
+        if request.uses_cxx_modules():
+            _prepare_gcc_module_mapper(request)
+
+        returncode, stdout, stderr = await run_driver(self.argv_for_compile(request))
+        artifacts = request.expected_artifacts() if returncode == 0 else ()
+        return CompileResult(
+            returncode=returncode,
+            stdout=stdout,
+            stderr=stderr,
+            artifacts=artifacts,
         )
 
 
@@ -58,3 +91,8 @@ class GccCxxLinker(ArgvLinker):
 
     def link_flags(self, settings: LinkSettings) -> list[str]:
         return gnu_link_flags(settings)
+
+    async def link(self, request: LinkRequest) -> LinkResult:
+        request.output.parent.mkdir(parents=True, exist_ok=True)
+        returncode, stdout, stderr = await run_driver(self.argv_for_link(request))
+        return LinkResult(returncode=returncode, stdout=stdout, stderr=stderr)
