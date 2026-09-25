@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from rosetta_build.graph import LinkGraph, ModuleGraph, SourceGraph, UsageGraph
 from rosetta_build.schema import (
+    DependencyConfig,
     DynamicLibraryTargetConfig,
     ExecutableTargetConfig,
     ModuleImplementationTargetConfig,
@@ -53,6 +54,8 @@ class Collection(BaseModel):
     module_graph: ModuleGraph
     # Target name -> logical module names it exports (``M`` or ``M:part``).
     module_exports: dict[str, frozenset[str]]
+    # Declared project dependencies (not yet populated).
+    dependencies: dict[str, DependencyConfig]
 
 
 def collect(source_tree: Path) -> Collection:
@@ -80,6 +83,7 @@ def collect(source_tree: Path) -> Collection:
         link_graph=link_graph,
         module_graph=module_graph,
         module_exports=module_exports,
+        dependencies=dict(tool_config.dependencies),
     )
 
 

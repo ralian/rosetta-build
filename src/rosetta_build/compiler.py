@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
@@ -36,7 +36,11 @@ __all__ = [
 
 @pydantic_dataclass
 class Project:
+    """A named build project and its populated external dependencies."""
+
     name: str = ""
+    # Dependency name -> populated source tree.
+    dependencies: dict[str, Path] = field(default_factory=dict)
 
 
 class ProjectGenerator(ABC):

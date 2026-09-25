@@ -116,16 +116,65 @@ def parse_target_config(raw: object) -> TargetConfig:
     return _TARGET_CONFIG_ADAPTER.validate_python(raw)
 
 
+class GitDependencyConfig(BaseModel):
+    """FetchContent-style git dependency: clone ``uri`` at ``tag``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    provider: Literal["git"]
+    uri: str
+    tag: str
+
+    @field_validator("uri")
+    @classmethod
+    def _uri_scheme(cls, value: str) -> str:
+        if not value.startswith(("https://", "ssh://", "file://")):
+            raise ValueError("git dependency uri must use https://, ssh://, or file://")
+        return value
+
+    @field_validator("tag")
+    @classmethod
+    def _tag_nonempty(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("git dependency tag must be non-empty")
+        return value
+
+
+DependencyConfig = Annotated[
+    GitDependencyConfig,
+    Field(discriminator="provider"),
+]
+
+_DEPENDENCY_CONFIG_ADAPTER: TypeAdapter[DependencyConfig] = TypeAdapter(
+    DependencyConfig
+)
+
+
+def parse_dependency_config(raw: object) -> DependencyConfig:
+    return _DEPENDENCY_CONFIG_ADAPTER.validate_python(raw)
+
+
 class RosettaBuildConfig(BaseModel):
     """Schema for ``[tool.rosetta-build]`` in the root ``pyproject.toml``."""
 
     model_config = ConfigDict(extra="forbid")
 
     targets: list[Path] = Field(default_factory=list)
+    dependencies: dict[str, DependencyConfig] = Field(default_factory=dict)
 
     @field_validator("targets", mode="before")
     @classmethod
     def _coerce_target_paths(cls, value: object) -> object:
         if isinstance(value, list):
             return [Path(item) for item in value]
+        return value
+
+    @field_validator("dependencies")
+    @classmethod
+    def _dependency_names(
+        cls, value: dict[str, DependencyConfig]
+    ) -> dict[str, DependencyConfig]:
+        for name in value:
+            if not name.strip():
+                raise ValueError("dependency name must be non-empty")
         return value
