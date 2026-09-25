@@ -5,12 +5,13 @@ from __future__ import annotations
 import base64
 import hashlib
 import io
-import re
 import tarfile
 import zipfile
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
+
+from rosetta_build.metadata import ProjectMetadata, canonicalize_name
 
 __all__ = [
     "WheelBuildError",
@@ -21,6 +22,7 @@ __all__ = [
     "sdist_filename",
     "wheel_dist_name",
     "wheel_filename",
+    "write_dist_info",
 ]
 
 
@@ -32,19 +34,19 @@ class WheelBuildError(Exception):
 class WheelRequest:
     """Inputs for one pure-Python wheel + sdist pair."""
 
-    distribution_name: str
-    version: str
+    metadata: ProjectMetadata
     sources: tuple[Path, ...]
     wheel_output: Path
     sdist_output: Path
-    summary: str | None = None
-    requires_python: str | None = None
-    metadata_extra: Mapping[str, str] = field(default_factory=dict)
+    pyproject_text: str | None = None
 
+    @property
+    def distribution_name(self) -> str:
+        return self.metadata.name
 
-def canonicalize_name(name: str) -> str:
-    """PEP 503 name normalization."""
-    return re.sub(r"[-_.]+", "-", name).lower()
+    @property
+    def version(self) -> str:
+        return self.metadata.version
 
 
 def wheel_dist_name(name: str) -> str:
@@ -63,7 +65,8 @@ def build_wheel(request: WheelRequest) -> Path:
     dist = wheel_dist_name(request.distribution_name)
     version = request.version
     dist_info = f"{dist}-{version}.dist-info"
-    metadata = _core_metadata(request)
+    metadata = request.metadata.to_core_metadata()
+    entry_points = request.metadata.entry_points_text()
     wheel_text = (
         "Wheel-Version: 1.0\n"
         "Generator: rosetta-build\n"
@@ -93,6 +96,12 @@ def build_wheel(request: WheelRequest) -> Path:
         zf.writestr(wheel_name, wheel_bytes)
         records.append((wheel_name, _hash_digest(wheel_bytes), str(len(wheel_bytes))))
 
+        if entry_points is not None:
+            ep_bytes = entry_points.encode("utf-8")
+            ep_name = f"{dist_info}/entry_points.txt"
+            zf.writestr(ep_name, ep_bytes)
+            records.append((ep_name, _hash_digest(ep_bytes), str(len(ep_bytes))))
+
         record_name = f"{dist_info}/RECORD"
         record_body = "".join(
             f"{path},{digest},{size}\n" for path, digest, size in records
@@ -114,8 +123,8 @@ def build_sdist(request: WheelRequest) -> Path:
     dist = canonicalize_name(request.distribution_name)
     version = request.version
     root = f"{dist}-{version}"
-    metadata = _core_metadata(request)
-    pyproject = _sdist_pyproject(request)
+    metadata = request.metadata.to_core_metadata()
+    pyproject = request.pyproject_text or _sdist_pyproject(request.metadata)
 
     output = request.sdist_output
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -129,6 +138,29 @@ def build_sdist(request: WheelRequest) -> Path:
             _add_tar_bytes(tf, f"{root}/{arcname}", abs_path.read_bytes())
 
     return output
+
+
+def write_dist_info(metadata: ProjectMetadata, metadata_directory: Path) -> str:
+    """Write a ``.dist-info`` directory for ``prepare_metadata_for_build_wheel``.
+
+    Returns the basename of the created directory.
+    """
+    dist = wheel_dist_name(metadata.name)
+    dirname = f"{dist}-{metadata.version}.dist-info"
+    dest = metadata_directory / dirname
+    dest.mkdir(parents=True, exist_ok=True)
+    (dest / "METADATA").write_text(metadata.to_core_metadata(), encoding="utf-8")
+    wheel_text = (
+        "Wheel-Version: 1.0\n"
+        "Generator: rosetta-build\n"
+        "Root-Is-Purelib: true\n"
+        "Tag: py3-none-any\n"
+    )
+    (dest / "WHEEL").write_text(wheel_text, encoding="utf-8")
+    entry_points = metadata.entry_points_text()
+    if entry_points is not None:
+        (dest / "entry_points.txt").write_text(entry_points, encoding="utf-8")
+    return dirname
 
 
 def _collect_payload_files(sources: Sequence[Path]) -> list[tuple[Path, str]]:
@@ -168,31 +200,20 @@ def _should_skip(path: Path) -> bool:
     return path.suffix in {".pyc", ".pyo"}
 
 
-def _core_metadata(request: WheelRequest) -> str:
-    lines = [
-        "Metadata-Version: 2.4",
-        f"Name: {request.distribution_name}",
-        f"Version: {request.version}",
-    ]
-    if request.summary:
-        lines.append(f"Summary: {request.summary}")
-    if request.requires_python:
-        lines.append(f"Requires-Python: {request.requires_python}")
-    for key, value in request.metadata_extra.items():
-        lines.append(f"{key}: {value}")
-    return "\n".join(lines) + "\n"
-
-
-def _sdist_pyproject(request: WheelRequest) -> str:
+def _sdist_pyproject(metadata: ProjectMetadata) -> str:
     lines = [
         "[project]",
-        f'name = "{request.distribution_name}"',
-        f'version = "{request.version}"',
+        f'name = "{metadata.name}"',
+        f'version = "{metadata.version}"',
     ]
-    if request.summary:
-        lines.append(f'description = "{_escape_toml(request.summary)}"')
-    if request.requires_python:
-        lines.append(f'requires-python = "{_escape_toml(request.requires_python)}"')
+    if metadata.summary:
+        lines.append(f'description = "{_escape_toml(metadata.summary)}"')
+    if metadata.requires_python:
+        lines.append(f'requires-python = "{_escape_toml(metadata.requires_python)}"')
+    lines.append("")
+    lines.append("[build-system]")
+    lines.append('requires = ["rosetta-build"]')
+    lines.append('build-backend = "rosetta_build.backend"')
     lines.append("")
     return "\n".join(lines)
 

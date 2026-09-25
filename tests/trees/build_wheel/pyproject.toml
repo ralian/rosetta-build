@@ -1,8 +1,33 @@
 [project]
-name = "build-wheel"
+name = "example_pkg"
 version = "1.2.3"
 description = "Wheel build fixture"
 requires-python = ">=3.14"
+readme = "README.md"
+authors = [
+  { name = "Test Author", email = "test@example.com" },
+]
+dependencies = [
+  "pydantic>=2",
+]
+keywords = ["rosetta", "wheel"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+]
+license = "MIT"
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.urls]
+Homepage = "https://example.com/example_pkg"
+
+[project.scripts]
+example-pkg = "example_pkg:main"
+
+[build-system]
+requires = ["rosetta-build"]
+build-backend = "rosetta_build.backend"
 
 [tool.rosetta-build]
 targets = [

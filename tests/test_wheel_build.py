@@ -24,8 +24,9 @@ def test_plan_wheel_tree(tmp_path: Path) -> None:
     step = plan.wheel_steps[0]
     assert step.target == "example_pkg"
     assert step.request.version == "1.2.3"
-    assert step.request.summary == "Wheel build fixture"
-    assert step.request.requires_python == ">=3.14"
+    assert step.request.metadata.summary == "Wheel build fixture"
+    assert step.request.metadata.requires_python == ">=3.14"
+    assert step.request.metadata.license_expression == "MIT"
     assert plan.wheel_artifact_by_target["example_pkg"] == (
         tmp_path / "build" / "wheels" / "example_pkg-1.2.3-py3-none-any.whl"
     )
@@ -53,6 +54,8 @@ def test_build_wheel_and_sdist(tmp_path: Path) -> None:
         metadata = zf.read("example_pkg-1.2.3.dist-info/METADATA").decode()
         assert "Name: example_pkg" in metadata
         assert "Version: 1.2.3" in metadata
+        assert "License-Expression: MIT" in metadata
+        assert "example_pkg-1.2.3.dist-info/entry_points.txt" in names
         wheel_text = zf.read("example_pkg-1.2.3.dist-info/WHEEL").decode()
         assert "Root-Is-Purelib: true" in wheel_text
         assert "Tag: py3-none-any" in wheel_text

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import tomllib
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,6 +15,7 @@ from rosetta_build.compiler import (
     ModuleUnitKind,
 )
 from rosetta_build.language import CompilerFamily, Language
+from rosetta_build.metadata import MetadataError, load_project_metadata, names_match
 from rosetta_build.options import CompileSettings, CxxStandard, LinkSettings
 from rosetta_build.target import (
     DynamicLibraryTarget,
@@ -109,7 +109,19 @@ def plan_build(
     build_dir = build_dir.resolve()
     targets = collection.targets
     pic_targets = _targets_needing_pic(targets)
-    project = _load_project_table(collection.source_tree)
+    try:
+        project_meta = load_project_metadata(collection.source_tree)
+    except MetadataError as exc:
+        # Native-only trees may omit version; only fail when wheels are present.
+        wheel_names = [
+            name for name, target in targets.items() if isinstance(target, WheelTarget)
+        ]
+        if wheel_names:
+            raise PlanError(str(exc)) from exc
+        project_meta = None
+    pyproject_text = (collection.source_tree / "pyproject.toml").read_text(
+        encoding="utf-8"
+    )
 
     objects_by_target: dict[str, tuple[Path, ...]] = {}
     bmi_by_exporter: dict[str, Path] = {}
@@ -160,22 +172,29 @@ def plan_build(
         assert isinstance(target, WheelTarget)
         if not target.sources:
             raise PlanError(f"wheel target {name!r} has no sources")
-        version = _project_version(project, wheel_target=name)
-        wheel_out = build_dir / "wheels" / wheel_filename(name, version)
-        sdist_out = build_dir / "sdists" / sdist_filename(name, version)
+        if project_meta is None:
+            raise PlanError(
+                f"wheel target {name!r} requires a valid root [project] table"
+            )
+        dist_meta = (
+            project_meta
+            if names_match(name, project_meta.name)
+            else project_meta.with_name(name)
+        )
+        version = dist_meta.version
+        wheel_out = build_dir / "wheels" / wheel_filename(dist_meta.name, version)
+        sdist_out = build_dir / "sdists" / sdist_filename(dist_meta.name, version)
         wheel_artifact_by_target[name] = wheel_out
         sdist_artifact_by_target[name] = sdist_out
         wheel_steps.append(
             WheelStep(
                 target=name,
                 request=WheelRequest(
-                    distribution_name=name,
-                    version=version,
+                    metadata=dist_meta,
                     sources=tuple(sorted(target.sources)),
                     wheel_output=wheel_out,
                     sdist_output=sdist_out,
-                    summary=_optional_str(project.get("description")),
-                    requires_python=_optional_str(project.get("requires-python")),
+                    pyproject_text=pyproject_text,
                 ),
             )
         )
@@ -423,30 +442,3 @@ def _link_inputs(
 
     walk(target_name, root=True)
     return objects + shared
-
-
-def _load_project_table(source_tree: Path) -> dict[str, object]:
-    pyproject = source_tree / "pyproject.toml"
-    raw = tomllib.loads(pyproject.read_text(encoding="utf-8"))
-    project = raw.get("project")
-    if project is None:
-        return {}
-    if not isinstance(project, dict):
-        raise PlanError(f"{pyproject}: [project] must be a table")
-    return project
-
-
-def _project_version(project: Mapping[str, object], *, wheel_target: str) -> str:
-    version = project.get("version")
-    if not isinstance(version, str) or not version.strip():
-        raise PlanError(
-            f"wheel target {wheel_target!r} requires root [project].version "
-            "to build a wheel/sdist"
-        )
-    return version.strip()
-
-
-def _optional_str(value: object) -> str | None:
-    if isinstance(value, str) and value.strip():
-        return value.strip()
-    return None
