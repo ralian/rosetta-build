@@ -1,9 +1,10 @@
-"""Execute planned compile and link steps."""
+"""Execute planned compile, wheel, and link steps."""
 
 from __future__ import annotations
 
 from rosetta_build.compilers import get_compiler, get_linker
-from rosetta_build.plan import BuildPlan, CompileStep, LinkStep, PlanError
+from rosetta_build.plan import BuildPlan, CompileStep, LinkStep, PlanError, WheelStep
+from rosetta_build.wheel import WheelBuildError, build_sdist, build_wheel
 
 __all__ = [
     "BuildError",
@@ -13,7 +14,7 @@ __all__ = [
 
 
 class BuildError(Exception):
-    """Raised when a compile or link driver fails."""
+    """Raised when a compile, wheel, or link driver fails."""
 
     def __init__(
         self,
@@ -30,9 +31,11 @@ class BuildError(Exception):
 
 
 async def run_build(plan: BuildPlan) -> None:
-    """Run all compile steps in plan order."""
-    for step in plan.compile_steps:
-        await _run_compile(plan, step)
+    """Run compile steps, then wheel/sdist assembly, in plan order."""
+    for compile_step in plan.compile_steps:
+        await _run_compile(plan, compile_step)
+    for wheel_step in plan.wheel_steps:
+        _run_wheel(wheel_step)
 
 
 async def run_link(plan: BuildPlan) -> None:
@@ -56,6 +59,17 @@ async def _run_compile(plan: BuildPlan, step: CompileStep) -> None:
             stdout=result.stdout,
             stderr=result.stderr,
         )
+
+
+def _run_wheel(step: WheelStep) -> None:
+    try:
+        build_wheel(step.request)
+        build_sdist(step.request)
+    except WheelBuildError as exc:
+        raise BuildError(
+            f"wheel/sdist failed for target {step.target!r}: {exc}",
+            returncode=1,
+        ) from exc
 
 
 async def _run_link(plan: BuildPlan, step: LinkStep) -> None:

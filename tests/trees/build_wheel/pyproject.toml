@@ -1,0 +1,10 @@
+[project]
+name = "build-wheel"
+version = "1.2.3"
+description = "Wheel build fixture"
+requires-python = ">=3.14"
+
+[tool.rosetta-build]
+targets = [
+  "python/pkg/target.toml",
+]

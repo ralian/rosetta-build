@@ -18,7 +18,7 @@ from rosetta_build.target import (
 TREES = Path(__file__).parent / "trees"
 
 
-def test_plan_example_tree_compiles_native_skips_wheel(tmp_path: Path) -> None:
+def test_plan_example_tree_compiles_native_and_wheels(tmp_path: Path) -> None:
     collection = collect(TREES / "example")
     plan = plan_build(collection, build_dir=tmp_path / "build")
 
@@ -27,6 +27,14 @@ def test_plan_example_tree_compiles_native_skips_wheel(tmp_path: Path) -> None:
     assert targets == {"core", "util", "plugin", "hello"}
     assert "example_pkg" not in targets
     assert len(plan.compile_steps) == 4
+
+    assert [step.target for step in plan.wheel_steps] == ["example_pkg"]
+    assert plan.wheel_artifact_by_target["example_pkg"].name == (
+        "example_pkg-0.0.0-py3-none-any.whl"
+    )
+    assert plan.sdist_artifact_by_target["example_pkg"].name == (
+        "example-pkg-0.0.0.tar.gz"
+    )
 
     link_targets = [step.target for step in plan.link_steps]
     assert link_targets == ["plugin", "hello"]

@@ -71,7 +71,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
     build_parser = subparsers.add_parser(
         "build",
-        help="Compile collected native/module targets (GCC/g++ for now).",
+        help=(
+            "Compile native/module targets and build wheel/sdist targets "
+            "(GCC/g++ for native for now)."
+        ),
     )
     _add_build_args(build_parser)
     build_parser.set_defaults(handler=_cmd_build)
@@ -126,6 +129,11 @@ def _cmd_build(args: argparse.Namespace) -> int:
     plan = _plan_from_args(args)
     asyncio.run(run_build(plan))
     print(f"compiled {len(plan.compile_steps)} translation unit(s)")
+    print(f"built {len(plan.wheel_steps)} wheel/sdist target(s)")
+    for name, path in sorted(plan.wheel_artifact_by_target.items()):
+        print(f"  wheel {name}: {path}")
+    for name, path in sorted(plan.sdist_artifact_by_target.items()):
+        print(f"  sdist {name}: {path}")
     return 0
 
 

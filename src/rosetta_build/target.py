@@ -77,7 +77,7 @@ class ModuleImplementationTarget(ModuleTarget):
 
 @dataclass
 class WheelTarget(Target):
-    """Python wheel artifact: name and sources only."""
+    """Python wheel/sdist artifact: name and package sources only."""
 
 
 class TargetGenerator(ABC):

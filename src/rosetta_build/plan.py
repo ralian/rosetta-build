@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tomllib
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,12 +29,18 @@ from rosetta_build.target import (
     Target,
     WheelTarget,
 )
+from rosetta_build.wheel import (
+    WheelRequest,
+    sdist_filename,
+    wheel_filename,
+)
 
 __all__ = [
     "BuildPlan",
     "CompileStep",
     "LinkStep",
     "PlanError",
+    "WheelStep",
     "plan_build",
 ]
 
@@ -57,15 +64,26 @@ class LinkStep:
 
 
 @dataclass(frozen=True, slots=True)
+class WheelStep:
+    """Build a pure-Python wheel and matching sdist for one ``WheelTarget``."""
+
+    target: str
+    request: WheelRequest
+
+
+@dataclass(frozen=True, slots=True)
 class BuildPlan:
-    """Ordered compile then link work for one toolchain family."""
+    """Ordered compile, wheel, then link work for one toolchain family."""
 
     family: CompilerFamily
     build_dir: Path
     compile_steps: tuple[CompileStep, ...]
+    wheel_steps: tuple[WheelStep, ...]
     link_steps: tuple[LinkStep, ...]
     objects_by_target: Mapping[str, tuple[Path, ...]]
     link_artifact_by_target: Mapping[str, Path]
+    wheel_artifact_by_target: Mapping[str, Path]
+    sdist_artifact_by_target: Mapping[str, Path]
 
 
 def plan_build(
@@ -74,12 +92,13 @@ def plan_build(
     build_dir: Path,
     family: CompilerFamily = CompilerFamily.GCC,
 ) -> BuildPlan:
-    """Lower ``collection`` into per-TU compiles and link steps.
+    """Lower ``collection`` into compile, wheel/sdist, and link steps.
 
     Supported for now: ``CompilerFamily.GCC`` + ``Language.CXX`` native/module
-    targets. ``WheelTarget`` rows are skipped. Static libraries contribute
-    objects only (no ``ar`` archive step yet); dynamic libraries and
-    executables get link steps.
+    targets, plus pure-Python ``WheelTarget`` rows (wheel + sdist). Static
+    libraries contribute objects only (no ``ar`` archive step yet); dynamic
+    libraries and executables get link steps. Install only relocates built
+    wheels later.
     """
     if family is not CompilerFamily.GCC:
         raise PlanError(
@@ -90,6 +109,7 @@ def plan_build(
     build_dir = build_dir.resolve()
     targets = collection.targets
     pic_targets = _targets_needing_pic(targets)
+    project = _load_project_table(collection.source_tree)
 
     objects_by_target: dict[str, tuple[Path, ...]] = {}
     bmi_by_exporter: dict[str, Path] = {}
@@ -132,6 +152,34 @@ def plan_build(
         if bmi is not None:
             bmi_by_exporter[name] = bmi
 
+    wheel_steps: list[WheelStep] = []
+    wheel_artifact_by_target: dict[str, Path] = {}
+    sdist_artifact_by_target: dict[str, Path] = {}
+    for name in sorted(n for n, t in targets.items() if isinstance(t, WheelTarget)):
+        target = targets[name]
+        assert isinstance(target, WheelTarget)
+        if not target.sources:
+            raise PlanError(f"wheel target {name!r} has no sources")
+        version = _project_version(project, wheel_target=name)
+        wheel_out = build_dir / "wheels" / wheel_filename(name, version)
+        sdist_out = build_dir / "sdists" / sdist_filename(name, version)
+        wheel_artifact_by_target[name] = wheel_out
+        sdist_artifact_by_target[name] = sdist_out
+        wheel_steps.append(
+            WheelStep(
+                target=name,
+                request=WheelRequest(
+                    distribution_name=name,
+                    version=version,
+                    sources=tuple(sorted(target.sources)),
+                    wheel_output=wheel_out,
+                    sdist_output=sdist_out,
+                    summary=_optional_str(project.get("description")),
+                    requires_python=_optional_str(project.get("requires-python")),
+                ),
+            )
+        )
+
     link_artifact_by_target: dict[str, Path] = {}
     link_steps: list[LinkStep] = []
 
@@ -166,9 +214,12 @@ def plan_build(
         family=family,
         build_dir=build_dir,
         compile_steps=tuple(compile_steps),
+        wheel_steps=tuple(wheel_steps),
         link_steps=tuple(link_steps),
         objects_by_target=objects_by_target,
         link_artifact_by_target=link_artifact_by_target,
+        wheel_artifact_by_target=wheel_artifact_by_target,
+        sdist_artifact_by_target=sdist_artifact_by_target,
     )
 
 
@@ -372,3 +423,30 @@ def _link_inputs(
 
     walk(target_name, root=True)
     return objects + shared
+
+
+def _load_project_table(source_tree: Path) -> dict[str, object]:
+    pyproject = source_tree / "pyproject.toml"
+    raw = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    project = raw.get("project")
+    if project is None:
+        return {}
+    if not isinstance(project, dict):
+        raise PlanError(f"{pyproject}: [project] must be a table")
+    return project
+
+
+def _project_version(project: Mapping[str, object], *, wheel_target: str) -> str:
+    version = project.get("version")
+    if not isinstance(version, str) or not version.strip():
+        raise PlanError(
+            f"wheel target {wheel_target!r} requires root [project].version "
+            "to build a wheel/sdist"
+        )
+    return version.strip()
+
+
+def _optional_str(value: object) -> str | None:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
