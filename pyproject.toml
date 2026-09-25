@@ -1,15 +1,39 @@
 [project]
 name = "rosetta-build"
 version = "0.1.0"
-description = "Add your description here"
+description = "Flat (non-meta) multilanguage build tool with a Python planner"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     { name = "ralian", email = "wbowers314@gmail.com" }
 ]
 requires-python = ">=3.14"
+keywords = [
+    "build",
+    "c++",
+    "modules",
+    "packaging",
+    "pep517",
+    "rust",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Build Tools",
+    "Typing :: Typed",
+]
 dependencies = [
     "pydantic>=2.13.5",
 ]
+
+[project.urls]
+Homepage = "https://github.com/ralian/rosetta-build"
+Repository = "https://github.com/ralian/rosetta-build"
+Issues = "https://github.com/ralian/rosetta-build/issues"
 
 [project.scripts]
 rosetta-build = "rosetta_build.cli:main"
@@ -25,6 +49,18 @@ dev = [
     "ruff>=0.16.8",
 ]
 
+[tool.uv.build-backend]
+module-root = "src"
+module-name = "rosetta_build"
+source-exclude = [
+    "tests/**",
+    "docs/**",
+]
+wheel-exclude = [
+    "tests/**",
+    "docs/**",
+]
+
 [tool.mypy]
 strict = true
 files = ["src", "tests"]
@@ -32,3 +68,9 @@ exclude = [
     "^tests/trees/",
 ]
 
+[tool.ruff]
+target-version = "py314"
+src = ["src", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
