@@ -66,4 +66,6 @@ Shared work for every adapter:
 
 `CompileRequest` carries `object_output` and optional `bmi_output` / `bmi_inputs`. Adapters with `capabilities.cxx_modules` map these to vendor flags; others raise.
 
+Scan interchange uses **P1689R5** ([`p1689.py`](../src/rosetta_build/p1689.py)): parse/dump JSON, resolve `primary-output` compile edges, and map `compiled-module-path` requires to `BmiInput`.
+
 When adding a portable option, decide: C-only, CXX-only, Rust-only, or shared. Shared bags are fine; adapters must still type-check / raise on mismatch.
