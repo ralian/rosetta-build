@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import shutil
 import subprocess
 from abc import ABC, abstractmethod
@@ -18,6 +19,7 @@ __all__ = [
     "populate_dependencies",
     "populate_dependency",
     "provider_for",
+    "sha256_checkout",
 ]
 
 
@@ -35,18 +37,30 @@ class DependencyProvider(ABC):
 
 @dataclass(frozen=True, slots=True)
 class GitDependencyProvider(DependencyProvider):
-    """Clone a git repository at a fixed tag (https://, ssh://, or file://)."""
+    """Clone a git repository at a fixed tag (https://, ssh://, or file://).
+
+    When ``hash`` is set (``sha256:<hex>``), the populated working tree is
+    hashed (excluding ``.git``) and must match.
+    """
 
     uri: str
     tag: str
+    hash: str | None = None
 
     def populate(self, dest: Path) -> Path:
-        return _clone_at_tag(uri=self.uri, tag=self.tag, dest=dest)
+        populated = _clone_at_tag(uri=self.uri, tag=self.tag, dest=dest)
+        if self.hash is not None:
+            try:
+                _verify_checkout_hash(populated, expected=self.hash)
+            except DependencyError:
+                shutil.rmtree(populated, ignore_errors=True)
+                raise
+        return populated
 
 
 def provider_for(spec: DependencyConfig) -> DependencyProvider:
     if isinstance(spec, GitDependencyConfig):
-        return GitDependencyProvider(uri=spec.uri, tag=spec.tag)
+        return GitDependencyProvider(uri=spec.uri, tag=spec.tag, hash=spec.hash)
     raise DependencyError(f"unsupported dependency provider: {spec!r}")
 
 
@@ -75,6 +89,36 @@ def populate_dependencies(
     return {
         name: populate_dependency(name, spec, deps_root) for name, spec in specs.items()
     }
+
+
+def sha256_checkout(root: Path) -> str:
+    """Return the SHA-256 hex digest of tracked working-tree files under ``root``.
+
+    Paths are hashed relative to ``root`` in sorted POSIX order. The ``.git``
+    directory is excluded so the digest is stable across clones.
+    """
+    root = root.resolve()
+    digest = hashlib.sha256()
+    for path in sorted(root.rglob("*")):
+        if not path.is_file():
+            continue
+        if ".git" in path.relative_to(root).parts:
+            continue
+        rel = path.relative_to(root).as_posix().encode("utf-8")
+        data = path.read_bytes()
+        digest.update(len(rel).to_bytes(8, "big"))
+        digest.update(rel)
+        digest.update(len(data).to_bytes(8, "big"))
+        digest.update(data)
+    return digest.hexdigest()
+
+
+def _verify_checkout_hash(root: Path, *, expected: str) -> None:
+    actual = f"sha256:{sha256_checkout(root)}"
+    if actual != expected:
+        raise DependencyError(
+            f"dependency hash mismatch for {root}: expected {expected}, got {actual}"
+        )
 
 
 def _clone_at_tag(*, uri: str, tag: str, dest: Path) -> Path:

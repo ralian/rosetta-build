@@ -117,13 +117,17 @@ def parse_target_config(raw: object) -> TargetConfig:
 
 
 class GitDependencyConfig(BaseModel):
-    """FetchContent-style git dependency: clone ``uri`` at ``tag``."""
+    """FetchContent-style git dependency: clone ``uri`` at ``tag``.
+
+    Optional ``hash`` pins the populated checkout as ``sha256:<hex>``.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     provider: Literal["git"]
     uri: str
     tag: str
+    hash: str | None = None
 
     @field_validator("uri")
     @classmethod
@@ -138,6 +142,20 @@ class GitDependencyConfig(BaseModel):
         if not value.strip():
             raise ValueError("git dependency tag must be non-empty")
         return value
+
+    @field_validator("hash")
+    @classmethod
+    def _hash_sha256(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().lower()
+        prefix = "sha256:"
+        if not normalized.startswith(prefix):
+            raise ValueError("dependency hash must be sha256:<hex>")
+        digest = normalized.removeprefix(prefix)
+        if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+            raise ValueError("sha256 hash must be 64 hexadecimal characters")
+        return f"{prefix}{digest}"
 
 
 DependencyConfig = Annotated[

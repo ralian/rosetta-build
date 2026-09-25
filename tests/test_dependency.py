@@ -17,6 +17,7 @@ from rosetta_build.dependency import (
     populate_dependencies,
     populate_dependency,
     provider_for,
+    sha256_checkout,
 )
 from rosetta_build.schema import (
     GitDependencyConfig,
@@ -58,10 +59,55 @@ def test_parse_git_dependency_config() -> None:
         "provider": "git",
         "uri": "https://example.com/repo.git",
         "tag": "v1.2.3",
+        "hash": "sha256:" + ("ab" * 32),
     })
     assert isinstance(spec, GitDependencyConfig)
     assert spec.uri == "https://example.com/repo.git"
     assert spec.tag == "v1.2.3"
+    assert spec.hash == "sha256:" + ("ab" * 32)
+
+
+def test_git_dependency_hash_optional() -> None:
+    spec = GitDependencyConfig(
+        provider="git",
+        uri="https://example.com/repo.git",
+        tag="v1",
+    )
+    assert spec.hash is None
+
+
+def test_git_dependency_hash_normalizes_case() -> None:
+    digest = "AB" * 32
+    spec = GitDependencyConfig(
+        provider="git",
+        uri="https://example.com/repo.git",
+        tag="v1",
+        hash=f"SHA256:{digest}",
+    )
+    assert spec.hash == f"sha256:{digest.lower()}"
+
+
+@pytest.mark.parametrize(
+    ("hash_value", "match"),
+    [
+        ("sha1:" + ("ab" * 20), "sha256:<hex>"),
+        ("blake2b:" + ("ab" * 32), "sha256:<hex>"),
+        ("ab" * 32, "sha256:<hex>"),
+        ("sha256:" + ("ab" * 31), "64 hexadecimal"),
+        ("sha256:" + ("ab" * 33), "64 hexadecimal"),
+        ("sha256:" + ("gg" * 32), "64 hexadecimal"),
+        ("sha256:", "64 hexadecimal"),
+        ("  ", "sha256:<hex>"),
+    ],
+)
+def test_git_dependency_rejects_invalid_hash(hash_value: str, match: str) -> None:
+    with pytest.raises(ValidationError, match=match):
+        GitDependencyConfig(
+            provider="git",
+            uri="https://example.com/repo.git",
+            tag="v1",
+            hash=hash_value,
+        )
 
 
 @pytest.mark.parametrize(
@@ -117,15 +163,18 @@ def test_rosetta_build_config_dependencies() -> None:
 
 
 def test_provider_for_git() -> None:
+    digest = "cd" * 32
     spec = GitDependencyConfig(
         provider="git",
         uri="file:///tmp/repo",
         tag="v1",
+        hash=f"sha256:{digest}",
     )
     provider = provider_for(spec)
     assert isinstance(provider, GitDependencyProvider)
     assert provider.uri == spec.uri
     assert provider.tag == spec.tag
+    assert provider.hash == spec.hash
 
 
 def test_populate_git_dependency_from_file_uri(tmp_path: Path) -> None:
@@ -147,6 +196,66 @@ def test_populate_git_dependency_from_file_uri(tmp_path: Path) -> None:
     shutil.rmtree(upstream)
     assert not upstream.exists()
     assert (dest / "README").is_file()
+
+
+def test_populate_git_dependency_accepts_matching_sha256(tmp_path: Path) -> None:
+    tag = "v1.0.0"
+    upstream = _ephemeral_git_repo(tmp_path / "src", tag=tag, content="pinned\n")
+    uri = _file_uri(upstream)
+    probe = tmp_path / "probe"
+    GitDependencyProvider(uri=uri, tag=tag).populate(probe)
+    expected = f"sha256:{sha256_checkout(probe)}"
+    shutil.rmtree(probe)
+
+    dest = tmp_path / "deps" / "mylib"
+    populated = populate_dependency(
+        "mylib",
+        GitDependencyConfig(provider="git", uri=uri, tag=tag, hash=expected),
+        tmp_path / "deps",
+    )
+    assert populated == dest.resolve()
+    assert (dest / "README").read_text(encoding="utf-8") == "pinned\n"
+    assert f"sha256:{sha256_checkout(dest)}" == expected
+
+    shutil.rmtree(upstream)
+
+
+def test_populate_git_dependency_rejects_mismatched_sha256(tmp_path: Path) -> None:
+    tag = "v1.0.0"
+    upstream = _ephemeral_git_repo(tmp_path / "src", tag=tag, content="pinned\n")
+    uri = _file_uri(upstream)
+    dest = tmp_path / "deps" / "mylib"
+    wrong = "sha256:" + ("00" * 32)
+
+    with pytest.raises(DependencyError, match="hash mismatch"):
+        populate_dependency(
+            "mylib",
+            GitDependencyConfig(provider="git", uri=uri, tag=tag, hash=wrong),
+            tmp_path / "deps",
+        )
+    assert not dest.exists()
+
+    shutil.rmtree(upstream)
+
+
+def test_sha256_checkout_ignores_git_metadata(tmp_path: Path) -> None:
+    tag = "v1.0.0"
+    upstream = _ephemeral_git_repo(tmp_path / "src", tag=tag, content="same\n")
+    uri = _file_uri(upstream)
+    first = GitDependencyProvider(uri=uri, tag=tag).populate(tmp_path / "a")
+    second = GitDependencyProvider(uri=uri, tag=tag).populate(tmp_path / "b")
+    assert sha256_checkout(first) == sha256_checkout(second)
+    shutil.rmtree(upstream)
+
+
+def test_sha256_checkout_changes_when_content_changes(tmp_path: Path) -> None:
+    left = tmp_path / "left"
+    right = tmp_path / "right"
+    left.mkdir()
+    right.mkdir()
+    (left / "README").write_text("a\n", encoding="utf-8")
+    (right / "README").write_text("b\n", encoding="utf-8")
+    assert sha256_checkout(left) != sha256_checkout(right)
 
 
 def test_populate_dependencies_and_project(tmp_path: Path) -> None:
@@ -206,7 +315,8 @@ def test_collect_loads_declared_dependencies(tmp_path: Path) -> None:
         "[tool.rosetta-build.dependencies.vendor]\n"
         'provider = "git"\n'
         'uri = "https://example.com/vendor.git"\n'
-        'tag = "v2.0.0"\n',
+        'tag = "v2.0.0"\n'
+        f'hash = "sha256:{"ab" * 32}"\n',
         encoding="utf-8",
     )
 
@@ -216,3 +326,4 @@ def test_collect_loads_declared_dependencies(tmp_path: Path) -> None:
     assert isinstance(dep, GitDependencyConfig)
     assert dep.uri == "https://example.com/vendor.git"
     assert dep.tag == "v2.0.0"
+    assert dep.hash == f"sha256:{'ab' * 32}"
