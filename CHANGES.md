@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.1.2] — 2026-09-24
+
+Incremental native builds and parallel edge execution.
+
+### Added
+
+- File-centric build edge DAG and ready-set scheduler (`schedule.py`) on top of
+  `BuildPlan`: skip clean compile/wheel/link edges; run dirty ones under a job
+  pool (`-j` / `--jobs`, default CPU count).
+- GCC compile depfiles via `-MD -MF` (sidecar `.d` next to each object); dirty
+  checks union depfile prerequisites so header edits rebuild consumers.
+- CLI `-B` / `--force` to rebuild all edges; ran/skipped counts in `build` and
+  `link` output.
+- Make-style depfile parser (`depfile.py`) and incremental/parallel tests.
+
+### Changed
+
+- `run_build` / `run_link` schedule by file dependencies (BMI and link inputs)
+  instead of walking the plan strictly sequentially.
+- `CompileRequest` carries an optional `depfile` path (planner sets it for
+  every native compile).
+
 ## [0.1.1] — 2026-09-24
 
 Self-hosting packaging release: Rosetta builds itself.

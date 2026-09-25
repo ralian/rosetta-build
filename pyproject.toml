@@ -1,6 +1,6 @@
 [project]
 name = "rosetta-build"
-version = "0.1.1"
+version = "0.1.2"
 description = "Flat (non-meta) multilanguage build tool with a Python planner"
 readme = "README.md"
 license = "MIT"
@@ -39,7 +39,7 @@ Issues = "https://github.com/ralian/rosetta-build/issues"
 rosetta-build = "rosetta_build.cli:main"
 
 [build-system]
-requires = ["rosetta-build>=0.1.0"]
+requires = ["rosetta-build>=0.1.1"]
 build-backend = "rosetta_build.backend"
 
 [tool.rosetta-build]
