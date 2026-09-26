@@ -11,7 +11,7 @@ from rosetta_build.collect import collect
 from rosetta_build.execute import run_build, run_link
 from rosetta_build.language import CompilerFamily, Language
 from rosetta_build.plan import plan_build
-from tests.conftest import requires_compiler
+from tests.conftest import requires_compiler, requires_gcc_fmodules
 
 TREES = Path(__file__).parent / "trees"
 
@@ -29,6 +29,7 @@ def test_build_and_link_non_module_tree(tmp_path: Path) -> None:
     assert asyncio.run(_run([str(exe)])) == 0
 
 
+@requires_gcc_fmodules()
 def test_build_and_link_module_tree(tmp_path: Path) -> None:
     collection = collect(TREES / "build_modules")
     build_dir = tmp_path / "build"

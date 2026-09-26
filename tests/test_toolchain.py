@@ -11,6 +11,8 @@ from rosetta_build.language import CompilerFamily, Language
 from rosetta_build.toolchain import (
     detect_compiler,
     detect_compilers,
+    gcc_help_supports_fmodules,
+    gcc_supports_fmodules,
     parse_compiler_version,
 )
 
@@ -58,6 +60,37 @@ def test_parse_compiler_version(
     family: CompilerFamily, text: str, expected: str
 ) -> None:
     assert parse_compiler_version(family, text) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        (
+            "  -fmodules-ts                Enable C++ modules-ts (experimental).\n",
+            False,
+        ),
+        (
+            "  -fmodules                   Enable C++20 Modules (experimental).\n",
+            True,
+        ),
+        (
+            "  -fmodules                   Enable C++20 Modules (experimental).\n"
+            "  -fmodules-ts                Enable C++ modules-ts (experimental).\n",
+            True,
+        ),
+        ("  -fmodule-mapper=<file>      Module mapper.\n", False),
+    ],
+)
+def test_gcc_help_supports_fmodules(text: str, expected: bool) -> None:
+    assert gcc_help_supports_fmodules(text) is expected
+
+
+def test_installed_gxx_fmodules_matches_gcc_15() -> None:
+    found = detect_compiler(CompilerFamily.GCC, Language.CXX)
+    if found.path is None or found.version is None:
+        return
+    major = int(found.version.split(".", 1)[0])
+    assert gcc_supports_fmodules(found) is (major >= 15)
 
 
 def test_parse_compiler_version_rejects_unrecognized_text() -> None:
