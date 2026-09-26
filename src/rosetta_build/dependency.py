@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import shutil
+import stat
 import subprocess
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -53,7 +55,7 @@ class GitDependencyProvider(DependencyProvider):
             try:
                 _verify_checkout_hash(populated, expected=self.hash)
             except DependencyError:
-                shutil.rmtree(populated, ignore_errors=True)
+                _rmtree(populated)
                 raise
         return populated
 
@@ -124,7 +126,7 @@ def _verify_checkout_hash(root: Path, *, expected: str) -> None:
 def _clone_at_tag(*, uri: str, tag: str, dest: Path) -> Path:
     dest = dest.resolve()
     if dest.exists():
-        shutil.rmtree(dest)
+        _rmtree(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
 
     try:
@@ -142,6 +144,18 @@ def _clone_at_tag(*, uri: str, tag: str, dest: Path) -> Path:
             f"failed to clone {uri!r} at tag {tag!r} into {dest}: {exc}"
         ) from exc
     return dest
+
+
+def _rmtree(path: Path) -> None:
+    """Remove ``path``, clearing the read-only bit Git sets on Windows."""
+
+    def _onexc(func: Callable[..., object], name: str, exc: BaseException) -> None:
+        if not isinstance(exc, PermissionError):
+            raise exc
+        os.chmod(name, stat.S_IWRITE)
+        func(name)
+
+    shutil.rmtree(path, onexc=_onexc)
 
 
 def _run_git(args: list[str]) -> None:

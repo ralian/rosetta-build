@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -14,6 +13,7 @@ from rosetta_build.compiler import Project
 from rosetta_build.dependency import (
     DependencyError,
     GitDependencyProvider,
+    _rmtree,
     populate_dependencies,
     populate_dependency,
     provider_for,
@@ -193,7 +193,7 @@ def test_populate_git_dependency_from_file_uri(tmp_path: Path) -> None:
     assert (dest / "README").read_text(encoding="utf-8") == "dep-content\n"
     assert dest.is_dir()
 
-    shutil.rmtree(upstream)
+    _rmtree(upstream)
     assert not upstream.exists()
     assert (dest / "README").is_file()
 
@@ -205,7 +205,7 @@ def test_populate_git_dependency_accepts_matching_sha256(tmp_path: Path) -> None
     probe = tmp_path / "probe"
     GitDependencyProvider(uri=uri, tag=tag).populate(probe)
     expected = f"sha256:{sha256_checkout(probe)}"
-    shutil.rmtree(probe)
+    _rmtree(probe)
 
     dest = tmp_path / "deps" / "mylib"
     populated = populate_dependency(
@@ -217,7 +217,7 @@ def test_populate_git_dependency_accepts_matching_sha256(tmp_path: Path) -> None
     assert (dest / "README").read_text(encoding="utf-8") == "pinned\n"
     assert f"sha256:{sha256_checkout(dest)}" == expected
 
-    shutil.rmtree(upstream)
+    _rmtree(upstream)
 
 
 def test_populate_git_dependency_rejects_mismatched_sha256(tmp_path: Path) -> None:
@@ -235,7 +235,7 @@ def test_populate_git_dependency_rejects_mismatched_sha256(tmp_path: Path) -> No
         )
     assert not dest.exists()
 
-    shutil.rmtree(upstream)
+    _rmtree(upstream)
 
 
 def test_sha256_checkout_ignores_git_metadata(tmp_path: Path) -> None:
@@ -245,7 +245,7 @@ def test_sha256_checkout_ignores_git_metadata(tmp_path: Path) -> None:
     first = GitDependencyProvider(uri=uri, tag=tag).populate(tmp_path / "a")
     second = GitDependencyProvider(uri=uri, tag=tag).populate(tmp_path / "b")
     assert sha256_checkout(first) == sha256_checkout(second)
-    shutil.rmtree(upstream)
+    _rmtree(upstream)
 
 
 def test_sha256_checkout_changes_when_content_changes(tmp_path: Path) -> None:
@@ -275,7 +275,7 @@ def test_populate_dependencies_and_project(tmp_path: Path) -> None:
     assert project.name == "demo"
     assert project.dependencies["mylib"] == populated["mylib"]
 
-    shutil.rmtree(upstream)
+    _rmtree(upstream)
     assert not upstream.exists()
 
 
@@ -288,7 +288,7 @@ def test_populate_git_missing_tag_raises(tmp_path: Path) -> None:
                 tmp_path / "deps" / "mylib"
             )
     finally:
-        shutil.rmtree(upstream)
+        _rmtree(upstream)
 
 
 def test_collect_loads_declared_dependencies(tmp_path: Path) -> None:
