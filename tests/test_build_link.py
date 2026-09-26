@@ -7,15 +7,15 @@ import shutil
 import time
 from pathlib import Path
 
-import pytest
-
 from rosetta_build.collect import collect
 from rosetta_build.execute import run_build, run_link
+from rosetta_build.language import CompilerFamily, Language
 from rosetta_build.plan import plan_build
+from tests.conftest import requires_compiler
 
 TREES = Path(__file__).parent / "trees"
 
-pytestmark = pytest.mark.skipif(shutil.which("g++") is None, reason="g++ not available")
+pytestmark = requires_compiler(CompilerFamily.GCC, Language.CXX)
 
 
 def test_build_and_link_non_module_tree(tmp_path: Path) -> None:

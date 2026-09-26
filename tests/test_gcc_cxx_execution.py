@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-import shutil
 from pathlib import Path
-
-import pytest
 
 from rosetta_build.compiler import (
     BmiInput,
@@ -19,12 +16,13 @@ from rosetta_build.compilers import get_compiler, get_linker
 from rosetta_build.compilers._gnu import gcc_module_mapper_path, gcc_module_mapper_text
 from rosetta_build.language import CompilerFamily, Language
 from rosetta_build.options import CompileSettings, CxxStandard, LinkSettings
+from tests.conftest import requires_compiler
 
 TREES = Path(__file__).parent / "trees"
 NON_MODULES = TREES / "build_non_modules"
 MODULES = TREES / "build_modules"
 
-pytestmark = pytest.mark.skipif(shutil.which("g++") is None, reason="g++ not available")
+pytestmark = requires_compiler(CompilerFamily.GCC, Language.CXX)
 
 
 def test_gcc_cxx_compiles_and_links_non_module(tmp_path: Path) -> None:
