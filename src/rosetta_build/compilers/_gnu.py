@@ -28,6 +28,7 @@ __all__ = [
     "gnu_include_flags",
     "gnu_link_flags",
     "gnu_module_flags",
+    "move_mingw_appended_exe",
 ]
 
 
@@ -126,6 +127,20 @@ def gnu_compile_flags(
 
 def gnu_link_flags(settings: LinkSettings) -> list[str]:
     return list(settings.raw_flags)
+
+
+def move_mingw_appended_exe(output: Path) -> None:
+    """Move ``<output>.exe`` onto ``output`` when the MinGW driver appended it.
+
+    MinGW ``gcc`` / ``g++`` add ``.exe`` to ``-o`` names that do not already end
+    in ``.exe``. A fresh ``<output>.exe`` replaces a stale extensionless file
+    left by an earlier link.
+    """
+    if output.name.endswith(".exe"):
+        return
+    written = output.with_name(f"{output.name}.exe")
+    if written.is_file():
+        written.replace(output)
 
 
 def _require_module_name_for_bmi(
