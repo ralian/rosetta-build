@@ -16,7 +16,7 @@ from rosetta_build.compilers import get_compiler, get_linker
 from rosetta_build.compilers._gnu import gcc_module_mapper_path, gcc_module_mapper_text
 from rosetta_build.language import CompilerFamily, Language
 from rosetta_build.options import CompileSettings, CxxStandard, LinkSettings
-from tests.conftest import requires_compiler
+from tests.conftest import requires_compiler, requires_gcc_fmodules
 
 TREES = Path(__file__).parent / "trees"
 NON_MODULES = TREES / "build_non_modules"
@@ -75,6 +75,7 @@ def test_gcc_cxx_compiles_and_links_non_module(tmp_path: Path) -> None:
     assert exe.is_file()
 
 
+@requires_gcc_fmodules()
 def test_gcc_cxx_compiles_module_interface_and_consumer(tmp_path: Path) -> None:
     interface = MODULES / "modules" / "math" / "math.cppm"
     impl = MODULES / "modules" / "math_impl" / "math.cpp"

@@ -16,11 +16,16 @@ __all__ = [
     "CompilerDetection",
     "detect_compiler",
     "detect_compilers",
+    "gcc_help_supports_fmodules",
+    "gcc_supports_fmodules",
     "parse_compiler_version",
 ]
 
 _PROBE_TIMEOUT_SECONDS = 10
 _DOTTED_VERSION = r"\d+(?:\.\d+)+"
+# `-fmodules` is its own option (GCC 15+). Do not treat `-fmodules-ts` as a match.
+_FMODULES_OPTION = re.compile(r"(?m)^\s*-fmodules(?:\s|$)")
+_fmodules_support: dict[str, bool] = {}
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +48,27 @@ def detect_compilers() -> tuple[CompilerDetection, ...]:
     return tuple(
         _detect(family, language, probed) for family, language in _COMPILER_REGISTRY
     )
+
+
+def gcc_help_supports_fmodules(text: str) -> bool:
+    """Return whether ``g++ --help=c++`` lists ``-fmodules``."""
+    return _FMODULES_OPTION.search(text) is not None
+
+
+def gcc_supports_fmodules(detection: CompilerDetection) -> bool:
+    """Return whether this g++ accepts ``-fmodules``."""
+    if detection.path is None:
+        return False
+    key = os.path.normcase(str(detection.path.resolve()))
+    cached = _fmodules_support.get(key)
+    if cached is not None:
+        return cached
+    result = _run(detection.path, ("--help=c++",))
+    supported = (
+        result is not None and result[0] == 0 and gcc_help_supports_fmodules(result[1])
+    )
+    _fmodules_support[key] = supported
+    return supported
 
 
 def parse_compiler_version(family: CompilerFamily, text: str) -> str | None:
