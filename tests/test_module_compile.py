@@ -64,13 +64,13 @@ def test_gcc_interface_uses_modules_and_mapper() -> None:
         "-c",
         "-std=c++23",
         "-fmodules",
-        "-fmodule-mapper=build/math.o.modulemap",
+        "-fmodule-mapper=" + str(Path("build/math.o.modulemap")),
         "-MD",
         "-MF",
-        "build/math.d",
+        str(Path("build/math.d")),
         "math.cppm",
         "-o",
-        "build/math.o",
+        str(Path("build/math.o")),
     ]
 
 
@@ -81,10 +81,10 @@ def test_clang_interface_emits_object_and_bmi_flags() -> None:
         "clang++",
         "-c",
         "-std=c++23",
-        "-fmodule-output=build/bmi/math.pcm",
+        "-fmodule-output=" + str(Path("build/bmi/math.pcm")),
         "math.cppm",
         "-o",
-        "build/math.o",
+        str(Path("build/math.o")),
     ]
 
 

@@ -33,20 +33,20 @@ def parse_depfile(path: Path) -> tuple[Path, ...]:
 def parse_depfile_text(text: str) -> tuple[Path, ...]:
     """Parse make-style dependency rules; return unique prerequisite paths.
 
-    Supports line continuations (``\\``) and multiple ``target: deps`` rules.
-    Target names are ignored; only prerequisites are returned.
+    The rule separator is a colon at the end of a filename. Colons inside a
+    path, including Windows drive letters, stay part of that path. Escape
+    rules match Ninja's GCC/Clang depfile lexer; see ``docs/depfile.md``.
     """
     collapsed = _collapse_continuations(text)
     prereqs: list[Path] = []
     seen: set[Path] = set()
     for line in collapsed.splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
+        if not line.strip() or line.lstrip().startswith("#"):
             continue
-        if ":" not in stripped:
-            raise DepfileError(f"depfile line missing ':': {stripped!r}")
-        _, _, right = stripped.partition(":")
-        for token in _split_make_tokens(right):
+        deps = _prerequisite_tokens(line)
+        if deps is None:
+            raise DepfileError(f"depfile line missing ':': {line.strip()!r}")
+        for token in deps:
             path = Path(token)
             if path not in seen:
                 seen.add(path)
@@ -68,27 +68,80 @@ def _collapse_continuations(text: str) -> str:
     return "\n".join(lines)
 
 
-def _split_make_tokens(fragment: str) -> list[str]:
-    """Split make prerequisites on unescaped whitespace."""
-    tokens: list[str] = []
-    current: list[str] = []
-    escaped = False
-    for char in fragment:
-        if escaped:
-            current.append(char)
-            escaped = False
-            continue
-        if char == "\\":
-            escaped = True
-            continue
+def _prerequisite_tokens(line: str) -> list[str] | None:
+    """Return prerequisite filenames, or None when the line has no rule colon."""
+    prereqs: list[str] = []
+    saw_separator = False
+    index = 0
+    length = len(line)
+    while index < length:
+        while index < length and line[index].isspace():
+            index += 1
+        if index >= length:
+            break
+        token, index, comment = _lex_filename(line, index)
+        if token.endswith(":"):
+            token = token[:-1]
+            if not saw_separator:
+                saw_separator = True
+                token = ""
+        if token and saw_separator:
+            prereqs.append(token)
+        if comment:
+            break
+    if not saw_separator:
+        return None
+    return prereqs
+
+
+def _lex_filename(line: str, index: int) -> tuple[str, int, bool]:
+    """Read one filename. Return its text, the next index, and whether a comment follows."""
+    parts: list[str] = []
+    length = len(line)
+    while index < length:
+        char = line[index]
         if char.isspace():
-            if current:
-                tokens.append("".join(current))
-                current = []
+            break
+        if char == "#":
+            return "".join(parts), index, True
+        if char == "\\":
+            start = index
+            while index < length and line[index] == "\\":
+                index += 1
+            count = index - start
+            if index >= length:
+                parts.append("\\" * count)
+                break
+            nxt = line[index]
+            if nxt == " ":
+                if count % 2 == 1:
+                    parts.append("\\" * (count // 2))
+                    parts.append(" ")
+                    index += 1
+                    continue
+                parts.append("\\" * count)
+                break
+            if nxt == "#":
+                parts.append("\\" * (count - 1))
+                parts.append("#")
+                index += 1
+                continue
+            if nxt == ":":
+                rest = index + 1
+                if rest >= length or line[rest].isspace():
+                    parts.append("\\" * count)
+                    parts.append(":")
+                    return "".join(parts), rest, False
+                parts.append("\\" * (count - 1))
+                parts.append(":")
+                index += 1
+                continue
+            parts.append("\\" * count)
             continue
-        current.append(char)
-    if escaped:
-        current.append("\\")
-    if current:
-        tokens.append("".join(current))
-    return tokens
+        if char == "$" and index + 1 < length and line[index + 1] == "$":
+            parts.append("$")
+            index += 2
+            continue
+        parts.append(char)
+        index += 1
+    return "".join(parts), index, False
