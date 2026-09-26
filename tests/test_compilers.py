@@ -8,6 +8,7 @@ import pytest
 
 from rosetta_build.compiler import BuildObject, CompileRequest, LinkRequest
 from rosetta_build.compilers import get_compiler, get_linker
+from rosetta_build.compilers._gnu import move_mingw_appended_exe
 from rosetta_build.language import CompilerFamily, Language
 from rosetta_build.options import (
     CompileSettings,
@@ -193,6 +194,40 @@ def test_gcc_linker_appends_raw_flags() -> None:
         "-o",
         "app",
     ]
+
+
+def test_move_mingw_appended_exe_replaces_requested_output(tmp_path: Path) -> None:
+    output = tmp_path / "hello"
+    written = tmp_path / "hello.exe"
+    output.write_bytes(b"stale")
+    written.write_bytes(b"fresh")
+
+    move_mingw_appended_exe(output)
+
+    assert output.read_bytes() == b"fresh"
+    assert not written.exists()
+
+
+def test_move_mingw_appended_exe_keeps_driver_output(tmp_path: Path) -> None:
+    output = tmp_path / "hello"
+    output.write_bytes(b"elf")
+
+    move_mingw_appended_exe(output)
+
+    assert output.read_bytes() == b"elf"
+    assert not (tmp_path / "hello.exe").exists()
+
+
+def test_move_mingw_appended_exe_leaves_explicit_exe_name(tmp_path: Path) -> None:
+    output = tmp_path / "hello.exe"
+    output.write_bytes(b"exe")
+    extra = tmp_path / "hello.exe.exe"
+    extra.write_bytes(b"extra")
+
+    move_mingw_appended_exe(output)
+
+    assert output.read_bytes() == b"exe"
+    assert extra.read_bytes() == b"extra"
 
 
 def test_collected_native_targets_expose_language() -> None:

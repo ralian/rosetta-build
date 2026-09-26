@@ -18,6 +18,7 @@ from rosetta_build.compilers._gnu import (
     gcc_module_mappings,
     gnu_compile_flags,
     gnu_link_flags,
+    move_mingw_appended_exe,
 )
 from rosetta_build.compilers._process import run_driver
 from rosetta_build.depfile import depfile_for_object
@@ -118,4 +119,6 @@ class GccCxxLinker(ArgvLinker):
     async def link(self, request: LinkRequest) -> LinkResult:
         request.output.parent.mkdir(parents=True, exist_ok=True)
         returncode, stdout, stderr = await run_driver(self.argv_for_link(request))
+        if returncode == 0:
+            move_mingw_appended_exe(request.output)
         return LinkResult(returncode=returncode, stdout=stdout, stderr=stderr)
