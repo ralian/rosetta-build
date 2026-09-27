@@ -28,6 +28,7 @@ def test_all_edge_types_uses_distinct_styles() -> None:
     assert 'color="#2563eb"' in dot  # usage
     assert 'color="#16a34a"' in dot  # static link
     assert 'color="#dc2626"' in dot  # dynamic link
+    assert 'color="#c2410c"' in dot  # package
 
     assert '"target:app" -> "source:apps/app/main.cpp"' in dot
     assert '"target:static_a" -> "target:static_b"' in dot
@@ -36,6 +37,8 @@ def test_all_edge_types_uses_distinct_styles() -> None:
     assert "style=dotted" in dot
     assert '"target:app" -> "target:dyn"' in dot
     assert "style=bold" in dot
+    assert '"target:pkg" -> "target:dyn"' in dot
+    assert '"target:pkg" -> "target:app"' in dot
 
 
 def test_cxx_modules_uses_module_styles() -> None:
@@ -54,7 +57,9 @@ def test_graphviz_not_generated_for_invalid_trees() -> None:
     for tree_name in (
         "dynamic_link_cycle",
         "invalid_wheel",
+        "invalid_package_type",
         "unknown_link",
+        "unknown_package",
         "missing_pyproject",
         "module_cycle",
         "duplicate_module_interface",

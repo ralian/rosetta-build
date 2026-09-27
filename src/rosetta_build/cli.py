@@ -245,11 +245,28 @@ def _print_collection(collection: Collection) -> None:
             print(f"    module exports ({len(exports)}):")
             for exported in sorted(exports):
                 print(f"      {exported}")
+        if isinstance(target, WheelTarget):
+            print(f"    package artifacts ({len(target.artifacts)}):")
+            for artifact in target.artifacts:
+                detail = artifact.target
+                extras: list[str] = []
+                if artifact.dest is not None:
+                    extras.append(f"dest={artifact.dest.as_posix()}")
+                if artifact.headers:
+                    extras.append("headers")
+                if artifact.debug_symbols:
+                    extras.append("debug_symbols")
+                if extras:
+                    detail = f"{detail} ({', '.join(extras)})"
+                print(f"      {detail}")
     print("dynamic link order:")
     for name in collection.link_graph.topological_order(kind="dynamic link"):
         print(f"  {name}")
     print("module order:")
     for name in collection.module_graph.topological_order(kind="module"):
+        print(f"  {name}")
+    print("package order:")
+    for name in collection.package_graph.topological_order(kind="package"):
         print(f"  {name}")
 
 

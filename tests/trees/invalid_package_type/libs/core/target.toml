@@ -1,0 +1,4 @@
+type = "static_library"
+language = "cxx"
+name = "core"
+sources = ["core.cpp"]

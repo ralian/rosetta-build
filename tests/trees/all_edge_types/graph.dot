@@ -7,6 +7,7 @@ digraph Collection {
   // Target nodes
   "target:app" [label="app",shape=box,style=filled,fillcolor="#dbeafe",color="#1d4ed8"];
   "target:dyn" [label="dyn",shape=hexagon,style=filled,fillcolor="#fee2e2",color="#b91c1c"];
+  "target:pkg" [label="pkg",shape=cylinder,style=filled,fillcolor="#fef3c7",color="#b45309"];
   "target:static_a" [label="static_a",shape=component,style=filled,fillcolor="#dcfce7",color="#15803d"];
   "target:static_b" [label="static_b",shape=component,style=filled,fillcolor="#dcfce7",color="#15803d"];
 
@@ -15,10 +16,12 @@ digraph Collection {
   "source:libs/dyn/dyn.cpp" [label="libs/dyn/dyn.cpp",shape=note,style=filled,fillcolor="#f3f4f6",color="#9ca3af"];
   "source:libs/static_a/a.cpp" [label="libs/static_a/a.cpp",shape=note,style=filled,fillcolor="#f3f4f6",color="#9ca3af"];
   "source:libs/static_b/b.cpp" [label="libs/static_b/b.cpp",shape=note,style=filled,fillcolor="#f3f4f6",color="#9ca3af"];
+  "source:python/pkg/src/pkg" [label="python/pkg/src/pkg",shape=note,style=filled,fillcolor="#f3f4f6",color="#9ca3af"];
 
   // Source edges
   "target:app" -> "source:apps/app/main.cpp" [style=solid,color="#6b7280",arrowhead=vee];
   "target:dyn" -> "source:libs/dyn/dyn.cpp" [style=solid,color="#6b7280",arrowhead=vee];
+  "target:pkg" -> "source:python/pkg/src/pkg" [style=solid,color="#6b7280",arrowhead=vee];
   "target:static_a" -> "source:libs/static_a/a.cpp" [style=solid,color="#6b7280",arrowhead=vee];
   "target:static_b" -> "source:libs/static_b/b.cpp" [style=solid,color="#6b7280",arrowhead=vee];
 
@@ -34,4 +37,8 @@ digraph Collection {
   "target:app" -> "target:dyn" [style=bold,color="#dc2626",arrowhead=normal];
 
   // Module import / visibility edges
+
+  // Package edges
+  "target:pkg" -> "target:app" [style=solid,color="#c2410c",arrowhead=normal,penwidth=1.5];
+  "target:pkg" -> "target:dyn" [style=solid,color="#c2410c",arrowhead=normal,penwidth=1.5];
 }

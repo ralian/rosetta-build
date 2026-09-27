@@ -33,4 +33,6 @@ digraph Collection {
   "target:math_detail" -> "target:math" [style=solid,color="#7c3aed",arrowhead=normal,penwidth=1.5];
   "target:math_impl" -> "target:math" [style=solid,color="#7c3aed",arrowhead=normal,penwidth=1.5];
   "target:math_impl" -> "target:math_detail" [style=solid,color="#7c3aed",arrowhead=normal,penwidth=1.5];
+
+  // Package edges
 }

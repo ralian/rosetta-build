@@ -1,0 +1,4 @@
+type = "wheel"
+name = "pkg"
+sources = ["src/pkg"]
+artifacts = ["core"]

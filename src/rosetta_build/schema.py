@@ -94,8 +94,53 @@ class ModuleImplementationTargetConfig(_ModuleTargetConfigBase):
     type: Literal["module_implementation"]
 
 
+class PackageArtifactConfig(BaseModel):
+    """Native target packaged into a wheel.
+
+    ``headers`` / ``debug_symbols`` select optional side payloads (not packed
+    yet; declared so configs can opt in ahead of the assembler).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    target: str
+    dest: Path | None = None
+    headers: bool = False
+    debug_symbols: bool = False
+
+    @field_validator("target")
+    @classmethod
+    def _target_nonempty(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("artifact target must be non-empty")
+        return value
+
+    @field_validator("dest", mode="before")
+    @classmethod
+    def _coerce_dest(cls, value: object) -> object:
+        if value is None or value is False:
+            return None
+        if isinstance(value, str):
+            return Path(value)
+        return value
+
+
 class WheelTargetConfig(_TargetConfigBase):
     type: Literal["wheel"]
+    artifacts: list[PackageArtifactConfig] = Field(default_factory=list)
+
+    @field_validator("artifacts", mode="before")
+    @classmethod
+    def _coerce_artifacts(cls, value: object) -> object:
+        if not isinstance(value, list):
+            return value
+        coerced: list[object] = []
+        for item in value:
+            if isinstance(item, str):
+                coerced.append({"target": item})
+            else:
+                coerced.append(item)
+        return coerced
 
 
 TargetConfig = Annotated[

@@ -1,4 +1,4 @@
-"""Source, usage, link, and module dependency graphs built during collection."""
+"""Source, usage, link, module, and package dependency graphs from collection."""
 
 from __future__ import annotations
 
@@ -71,3 +71,7 @@ class LinkGraph(TargetDepGraph):
 
 class ModuleGraph(TargetDepGraph):
     """C++ module BMI import / visibility dependencies; must form a DAG."""
+
+
+class PackageGraph(TargetDepGraph):
+    """Wheel → native artifact packaging dependencies; must form a DAG."""

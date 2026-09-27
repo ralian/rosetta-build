@@ -7,7 +7,13 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from rosetta_build.graph import LinkGraph, ModuleGraph, SourceGraph, UsageGraph
+from rosetta_build.graph import (
+    LinkGraph,
+    ModuleGraph,
+    PackageGraph,
+    SourceGraph,
+    UsageGraph,
+)
 from rosetta_build.schema import (
     DependencyConfig,
     DynamicLibraryTargetConfig,
@@ -15,6 +21,7 @@ from rosetta_build.schema import (
     ModuleImplementationTargetConfig,
     ModuleInterfaceTargetConfig,
     ModulePartitionTargetConfig,
+    PackageArtifactConfig,
     RosettaBuildConfig,
     StaticLibraryTargetConfig,
     TargetConfig,
@@ -29,6 +36,7 @@ from rosetta_build.target import (
     ModulePartitionTarget,
     ModuleTarget,
     NativeTarget,
+    PackageArtifact,
     StaticLibraryTarget,
     Target,
     WheelTarget,
@@ -52,6 +60,7 @@ class Collection(BaseModel):
     usage_graph: UsageGraph
     link_graph: LinkGraph
     module_graph: ModuleGraph
+    package_graph: PackageGraph
     # Target name -> logical module names it exports (``M`` or ``M:part``).
     module_exports: dict[str, frozenset[str]]
     # Declared project dependencies (not yet populated).
@@ -75,6 +84,7 @@ def collect(source_tree: Path) -> Collection:
     link_graph = _build_link_graph(resolved_targets)
     module_exports = _module_exports_map(resolved_targets)
     module_graph = _build_module_graph(resolved_targets, module_exports)
+    package_graph = _build_package_graph(resolved_targets)
     return Collection(
         source_tree=root,
         targets=resolved_targets,
@@ -82,6 +92,7 @@ def collect(source_tree: Path) -> Collection:
         usage_graph=usage_graph,
         link_graph=link_graph,
         module_graph=module_graph,
+        package_graph=package_graph,
         module_exports=module_exports,
         dependencies=dict(tool_config.dependencies),
     )
@@ -140,7 +151,12 @@ def _resolve_target(root: Path, config_path: Path, config: TargetConfig) -> Targ
     }
 
     if isinstance(config, WheelTargetConfig):
-        return WheelTarget(name=config.name, sources=sources, config_path=config_path)
+        return WheelTarget(
+            name=config.name,
+            sources=sources,
+            config_path=config_path,
+            artifacts=_resolve_package_artifacts(config.artifacts),
+        )
 
     include_dirs = {
         _resolve_under(root, base, path, label="include dir")
@@ -249,6 +265,40 @@ def _resolve_under(root: Path, base: Path, rel: Path, *, label: str) -> Path:
             f"{label} path escapes source tree ({root}): {rel} -> {resolved}"
         )
     return resolved
+
+
+def _resolve_package_artifacts(
+    configs: list[PackageArtifactConfig],
+) -> list[PackageArtifact]:
+    artifacts: list[PackageArtifact] = []
+    seen: set[str] = set()
+    for config in configs:
+        if config.target in seen:
+            raise CollectionError(
+                f"duplicate package artifact target {config.target!r}"
+            )
+        seen.add(config.target)
+        artifacts.append(
+            PackageArtifact(
+                target=config.target,
+                dest=_package_dest(config.dest),
+                headers=config.headers,
+                debug_symbols=config.debug_symbols,
+            )
+        )
+    return artifacts
+
+
+def _package_dest(dest: Path | None) -> Path | None:
+    if dest is None:
+        return None
+    if dest.is_absolute():
+        raise CollectionError(f"package artifact dest must be wheel-relative: {dest}")
+    if ".." in dest.parts:
+        raise CollectionError(
+            f"package artifact dest must not contain '..': {dest.as_posix()}"
+        )
+    return dest
 
 
 def _build_source_graph(targets: dict[str, Target]) -> SourceGraph:
@@ -397,6 +447,41 @@ def _build_module_graph(
     graph = ModuleGraph(nodes=frozenset(targets), edges=edges)
     try:
         graph.topological_order(kind="module")
+    except ValueError as exc:
+        raise CollectionError(str(exc)) from exc
+    return graph
+
+
+def _build_package_graph(targets: dict[str, Target]) -> PackageGraph:
+    """Build the wheel → native artifact packaging DAG.
+
+    Only ``DynamicLibraryTarget`` and ``ExecutableTarget`` may be packaged.
+    ``headers`` / ``debug_symbols`` on each artifact are stored on the target
+    for a later packaging pass and do not affect the graph.
+    """
+    edges: dict[str, frozenset[str]] = {}
+    for name, target in targets.items():
+        if not isinstance(target, WheelTarget):
+            edges[name] = frozenset()
+            continue
+
+        deps = {artifact.target for artifact in target.artifacts}
+        _validate_refs(name, deps, targets, label="package")
+        invalid = sorted(
+            dep
+            for dep in deps
+            if not isinstance(targets[dep], (DynamicLibraryTarget, ExecutableTarget))
+        )
+        if invalid:
+            raise CollectionError(
+                f"target {name!r} package artifacts must name dynamic_library "
+                f"or executable targets; not packable: {', '.join(invalid)}"
+            )
+        edges[name] = frozenset(deps)
+
+    graph = PackageGraph(nodes=frozenset(targets), edges=edges)
+    try:
+        graph.topological_order(kind="package")
     except ValueError as exc:
         raise CollectionError(str(exc)) from exc
     return graph

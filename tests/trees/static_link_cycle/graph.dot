@@ -19,4 +19,6 @@ digraph Collection {
   // Dynamic link edges
 
   // Module import / visibility edges
+
+  // Package edges
 }

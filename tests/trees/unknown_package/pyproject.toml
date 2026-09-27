@@ -1,0 +1,6 @@
+[project]
+name = "unknown-package"
+version = "0.0.0"
+
+[tool.rosetta-build]
+targets = ["python/pkg/target.toml"]

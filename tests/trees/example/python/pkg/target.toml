@@ -1,3 +1,7 @@
 type = "wheel"
 name = "example_pkg"
 sources = ["src/example_pkg"]
+artifacts = [
+  { target = "plugin", dest = "example_pkg", headers = true },
+  { target = "hello", dest = "example_pkg/bin", debug_symbols = true },
+]

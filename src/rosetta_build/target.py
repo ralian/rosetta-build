@@ -76,8 +76,24 @@ class ModuleImplementationTarget(ModuleTarget):
 
 
 @dataclass
+class PackageArtifact:
+    """Native artifact to pack into a wheel (linked binary today).
+
+    ``headers`` and ``debug_symbols`` are reserved for a later packaging
+    pass; collection stores and validates them now.
+    """
+
+    target: str
+    dest: Path | None = None
+    headers: bool = False
+    debug_symbols: bool = False
+
+
+@dataclass
 class WheelTarget(Target):
-    """Python wheel/sdist artifact: name and package sources only."""
+    """Python wheel/sdist artifact: sources plus optional native artifacts."""
+
+    artifacts: list[PackageArtifact] = field(default_factory=list)
 
 
 class TargetGenerator(ABC):

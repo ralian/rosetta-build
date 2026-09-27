@@ -8,4 +8,5 @@ targets = [
   "libs/static_b/target.toml",
   "libs/dyn/target.toml",
   "apps/app/target.toml",
+  "python/pkg/target.toml",
 ]

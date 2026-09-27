@@ -12,6 +12,7 @@ from rosetta_build.target import (
     ModuleImplementationTarget,
     ModuleInterfaceTarget,
     ModulePartitionTarget,
+    PackageArtifact,
     StaticLibraryTarget,
     WheelTarget,
 )
@@ -54,6 +55,31 @@ def test_collect_builds_source_usage_and_link_graphs() -> None:
         "hello",
     ]
     assert collection.module_graph.dependencies_of("hello") == frozenset()
+
+    wheel = collection.targets["example_pkg"]
+    assert isinstance(wheel, WheelTarget)
+    assert wheel.artifacts == [
+        PackageArtifact(
+            target="plugin",
+            dest=Path("example_pkg"),
+            headers=True,
+            debug_symbols=False,
+        ),
+        PackageArtifact(
+            target="hello",
+            dest=Path("example_pkg/bin"),
+            headers=False,
+            debug_symbols=True,
+        ),
+    ]
+    assert collection.package_graph.dependencies_of("example_pkg") == frozenset({
+        "plugin",
+        "hello",
+    })
+    assert collection.package_graph.dependencies_of("plugin") == frozenset()
+    order = collection.package_graph.topological_order(kind="package")
+    assert order.index("plugin") < order.index("example_pkg")
+    assert order.index("hello") < order.index("example_pkg")
 
 
 def test_collect_builds_module_graph() -> None:
@@ -132,6 +158,94 @@ def test_collect_rejects_missing_module_interface() -> None:
 def test_collect_rejects_non_module_import() -> None:
     with pytest.raises(CollectionError, match="must name module targets"):
         collect(TREES / "non_module_import")
+
+
+def test_collect_rejects_unknown_package_artifact() -> None:
+    with pytest.raises(CollectionError, match="unknown package targets"):
+        collect(TREES / "unknown_package")
+
+
+def test_collect_rejects_non_packable_package_artifact() -> None:
+    with pytest.raises(CollectionError, match="must name dynamic_library"):
+        collect(TREES / "invalid_package_type")
+
+
+def test_collect_rejects_invalid_package_dest(tmp_path: Path) -> None:
+    root = tmp_path / "tree"
+    (root / "python" / "pkg" / "src" / "pkg").mkdir(parents=True)
+    (root / "apps" / "hello").mkdir(parents=True)
+    (root / "pyproject.toml").write_text(
+        "[project]\n"
+        'name = "pkg"\n'
+        'version = "0.0.0"\n'
+        "\n"
+        "[tool.rosetta-build]\n"
+        'targets = ["apps/hello/target.toml", "python/pkg/target.toml"]\n',
+        encoding="utf-8",
+    )
+    (root / "apps" / "hello" / "target.toml").write_text(
+        'type = "executable"\n'
+        'language = "cxx"\n'
+        'name = "hello"\n'
+        'sources = ["main.cpp"]\n',
+        encoding="utf-8",
+    )
+    (root / "apps" / "hello" / "main.cpp").write_text(
+        "int main() { return 0; }\n",
+        encoding="utf-8",
+    )
+    (root / "python" / "pkg" / "src" / "pkg" / "__init__.py").write_text(
+        "",
+        encoding="utf-8",
+    )
+    (root / "python" / "pkg" / "target.toml").write_text(
+        'type = "wheel"\n'
+        'name = "pkg"\n'
+        'sources = ["src/pkg"]\n'
+        'artifacts = [{ target = "hello", dest = "../escape" }]\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(CollectionError, match="must not contain '\\.\\.'"):
+        collect(root)
+
+
+def test_collect_rejects_duplicate_package_artifact(tmp_path: Path) -> None:
+    root = tmp_path / "tree"
+    (root / "python" / "pkg" / "src" / "pkg").mkdir(parents=True)
+    (root / "apps" / "hello").mkdir(parents=True)
+    (root / "pyproject.toml").write_text(
+        "[project]\n"
+        'name = "pkg"\n'
+        'version = "0.0.0"\n'
+        "\n"
+        "[tool.rosetta-build]\n"
+        'targets = ["apps/hello/target.toml", "python/pkg/target.toml"]\n',
+        encoding="utf-8",
+    )
+    (root / "apps" / "hello" / "target.toml").write_text(
+        'type = "executable"\n'
+        'language = "cxx"\n'
+        'name = "hello"\n'
+        'sources = ["main.cpp"]\n',
+        encoding="utf-8",
+    )
+    (root / "apps" / "hello" / "main.cpp").write_text(
+        "int main() { return 0; }\n",
+        encoding="utf-8",
+    )
+    (root / "python" / "pkg" / "src" / "pkg" / "__init__.py").write_text(
+        "",
+        encoding="utf-8",
+    )
+    (root / "python" / "pkg" / "target.toml").write_text(
+        'type = "wheel"\n'
+        'name = "pkg"\n'
+        'sources = ["src/pkg"]\n'
+        'artifacts = ["hello", "hello"]\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(CollectionError, match="duplicate package artifact"):
+        collect(root)
 
 
 def test_collect_rejects_native_fields_on_wheel() -> None:

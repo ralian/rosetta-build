@@ -23,10 +23,11 @@ _USAGE_EDGE = 'style=dashed,color="#2563eb",arrowhead=normal'
 _STATIC_LINK_EDGE = 'style=dotted,color="#16a34a",arrowhead=normal'
 _DYNAMIC_LINK_EDGE = 'style=bold,color="#dc2626",arrowhead=normal'
 _MODULE_EDGE = 'style=solid,color="#7c3aed",arrowhead=normal,penwidth=1.5'
+_PACKAGE_EDGE = 'style=solid,color="#c2410c",arrowhead=normal,penwidth=1.5'
 
 
 def collection_to_dot(collection: Collection) -> str:
-    """Return Graphviz DOT for source, usage, link, and module edges."""
+    """Return Graphviz DOT for source, usage, link, module, and package edges."""
     root = collection.source_tree
     lines: list[str] = [
         "digraph Collection {",
@@ -105,6 +106,15 @@ def collection_to_dot(collection: Collection) -> str:
             lines.append(
                 f"  {_quote(_target_id(target_name))} -> {_quote(_target_id(dep))} "
                 f"[{_MODULE_EDGE}];"
+            )
+
+    lines.append("")
+    lines.append("  // Package edges")
+    for target_name in sorted(collection.package_graph.edges):
+        for dep in sorted(collection.package_graph.dependencies_of(target_name)):
+            lines.append(
+                f"  {_quote(_target_id(target_name))} -> {_quote(_target_id(dep))} "
+                f"[{_PACKAGE_EDGE}];"
             )
 
     lines.append("}")

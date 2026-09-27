@@ -37,4 +37,8 @@ digraph Collection {
   "target:hello" -> "target:plugin" [style=bold,color="#dc2626",arrowhead=normal];
 
   // Module import / visibility edges
+
+  // Package edges
+  "target:example_pkg" -> "target:hello" [style=solid,color="#c2410c",arrowhead=normal,penwidth=1.5];
+  "target:example_pkg" -> "target:plugin" [style=solid,color="#c2410c",arrowhead=normal,penwidth=1.5];
 }
