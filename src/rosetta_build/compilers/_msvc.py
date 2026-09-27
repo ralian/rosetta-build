@@ -6,6 +6,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from rosetta_build.compiler import CompileRequest, ModuleUnitKind
+from rosetta_build.flags import compile_flags
 from rosetta_build.language import CompilerFamily, Language
 from rosetta_build.options import (
     CompileSettings,
@@ -27,19 +28,6 @@ __all__ = [
 ]
 
 
-_C_STANDARDS: Mapping[CStandard, str] = {
-    CStandard.C11: "/std:c11",
-    CStandard.C17: "/std:c17",
-    CStandard.C23: "/std:clatest",
-}
-
-_CXX_STANDARDS: Mapping[CxxStandard, str] = {
-    CxxStandard.CXX17: "/std:c++17",
-    CxxStandard.CXX20: "/std:c++20",
-    CxxStandard.CXX23: "/std:c++latest",
-}
-
-
 def msvc_c_standard_flag(
     standard: LanguageStandard | None,
     *,
@@ -55,7 +43,7 @@ def msvc_c_standard_flag(
             key="standard",
             detail=f"expected a CStandard, got {type(standard).__name__}",
         )
-    return [_C_STANDARDS[standard]]
+    return list(compile_flags(standard, family))
 
 
 def msvc_cxx_standard_flag(
@@ -73,7 +61,7 @@ def msvc_cxx_standard_flag(
             key="standard",
             detail=f"expected a CxxStandard, got {type(standard).__name__}",
         )
-    return [_CXX_STANDARDS[standard]]
+    return list(compile_flags(standard, family))
 
 
 def msvc_define_flags(defines: Mapping[str, str | bool | int]) -> list[str]:

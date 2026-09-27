@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
+from rosetta_build.flags import CStandard, CxxStandard
 from rosetta_build.language import CompilerFamily, Language
 
 __all__ = [
@@ -20,18 +21,6 @@ __all__ = [
     "UnsupportedLinkOption",
     "UnsupportedOption",
 ]
-
-
-class CStandard(StrEnum):
-    C11 = "c11"
-    C17 = "c17"
-    C23 = "c23"
-
-
-class CxxStandard(StrEnum):
-    CXX17 = "cxx17"
-    CXX20 = "cxx20"
-    CXX23 = "cxx23"
 
 
 class RustEdition(StrEnum):
