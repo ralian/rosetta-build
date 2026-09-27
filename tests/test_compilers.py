@@ -55,6 +55,38 @@ def test_gcc_cxx_maps_standard_define_include_and_raw() -> None:
     assert compiler.capabilities.separate_link is True
 
 
+def test_gcc_c_maps_standard_define_include_and_raw() -> None:
+    compiler = get_compiler(CompilerFamily.GCC, Language.C)
+    request = CompileRequest(
+        sources=[Path("main.c")],
+        object_output=Path("main.o"),
+        settings=CompileSettings(
+            standard=CStandard.C17,
+            defines={"DEBUG": True, "VERSION": 2, "UNUSED": False},
+            include_dirs=[Path("include")],
+            raw_flags=["-Wall"],
+        ),
+    )
+    assert compiler.argv_for_compile(request) == [
+        "gcc",
+        "-c",
+        "-std=c17",
+        "-DDEBUG",
+        "-DVERSION=2",
+        "-UUNUSED",
+        "-Iinclude",
+        "-Wall",
+        "-MD",
+        "-MF",
+        "main.d",
+        "main.c",
+        "-o",
+        "main.o",
+    ]
+    assert compiler.capabilities.separate_link is True
+    assert compiler.capabilities.cxx_modules is False
+
+
 def test_clang_c_maps_c_standard() -> None:
     compiler = get_compiler(CompilerFamily.CLANG, Language.C)
     request = CompileRequest(
@@ -146,6 +178,7 @@ def test_gccrs_maps_edition() -> None:
 @pytest.mark.parametrize(
     ("family", "language", "standard"),
     [
+        (CompilerFamily.GCC, Language.C, CxxStandard.CXX23),
         (CompilerFamily.GCC, Language.CXX, CStandard.C17),
         (CompilerFamily.CLANG, Language.C, CxxStandard.CXX23),
         (CompilerFamily.MSVC, Language.CXX, RustEdition.E2021),
