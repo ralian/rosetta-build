@@ -170,6 +170,14 @@ the build directory. Optional Graphviz of the collected graphs:
 uv run rosetta-build collect . --graphviz graph.dot
 ```
 
+Optional Chrome Trace Event Format timings for ran edges (open in
+`chrome://tracing` or https://ui.perfetto.dev/):
+
+```bash
+uv run rosetta-build build . --trace build/trace.json
+uv run rosetta-build link . --trace build/link-trace.json
+```
+
 For a fuller conversion guide from CMake-style trees, see
 [`docs/converting-cxx.md`](docs/converting-cxx.md).
 

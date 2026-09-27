@@ -1,0 +1,33 @@
+[
+  {
+    "name": "process_name",
+    "ph": "M",
+    "pid": 1,
+    "args": {
+      "name": "rosetta-build"
+    }
+  },
+  {
+    "name": "thread_name",
+    "ph": "M",
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "name": "job 0"
+    }
+  },
+  {
+    "name": "link:hello",
+    "cat": "link",
+    "ph": "X",
+    "ts": 587.9949894733727,
+    "dur": 57947.353983763605,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "outputs": [
+        "/tmp/tmp.hyX1LJgTQi/build_non_modules/artifacts/hello"
+      ]
+    }
+  }
+]

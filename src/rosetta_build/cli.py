@@ -22,6 +22,7 @@ from rosetta_build.target import (
     Target,
     WheelTarget,
 )
+from rosetta_build.trace import TraceRecorder
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -128,6 +129,15 @@ def _add_build_args(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Rebuild all edges, ignoring freshness.",
     )
+    parser.add_argument(
+        "--trace",
+        type=Path,
+        metavar="OUT",
+        help=(
+            "Write Chrome Trace Event Format timings for ran edges to OUT "
+            "(view in chrome://tracing or https://ui.perfetto.dev/)."
+        ),
+    )
 
 
 def _cmd_collect(args: argparse.Namespace) -> int:
@@ -141,35 +151,53 @@ def _cmd_collect(args: argparse.Namespace) -> int:
 
 def _cmd_build(args: argparse.Namespace) -> int:
     plan = _plan_from_args(args)
-    result = asyncio.run(run_build(plan, jobs=args.jobs, force=args.force))
-    compiles = result.compiles
-    wheels = result.wheels
-    print(
-        f"compiled {compiles.ran}/{compiles.ran + compiles.skipped} "
-        f"translation unit(s) (skipped {compiles.skipped})"
-    )
-    print(
-        f"built {wheels.ran}/{wheels.ran + wheels.skipped} "
-        f"wheel/sdist target(s) (skipped {wheels.skipped})"
-    )
-    for name, path in sorted(plan.wheel_artifact_by_target.items()):
-        print(f"  wheel {name}: {path}")
-    for name, path in sorted(plan.sdist_artifact_by_target.items()):
-        print(f"  sdist {name}: {path}")
-    return 0
+    trace = TraceRecorder() if args.trace is not None else None
+    try:
+        result = asyncio.run(
+            run_build(plan, jobs=args.jobs, force=args.force, trace=trace)
+        )
+        compiles = result.compiles
+        wheels = result.wheels
+        print(
+            f"compiled {compiles.ran}/{compiles.ran + compiles.skipped} "
+            f"translation unit(s) (skipped {compiles.skipped})"
+        )
+        print(
+            f"built {wheels.ran}/{wheels.ran + wheels.skipped} "
+            f"wheel/sdist target(s) (skipped {wheels.skipped})"
+        )
+        for name, path in sorted(plan.wheel_artifact_by_target.items()):
+            print(f"  wheel {name}: {path}")
+        for name, path in sorted(plan.sdist_artifact_by_target.items()):
+            print(f"  sdist {name}: {path}")
+        return 0
+    finally:
+        if trace is not None:
+            assert args.trace is not None
+            trace.write(args.trace)
+            print(f"wrote trace: {args.trace}")
 
 
 def _cmd_link(args: argparse.Namespace) -> int:
     plan = _plan_from_args(args)
-    result = asyncio.run(run_link(plan, jobs=args.jobs, force=args.force))
-    links = result.links
-    print(
-        f"linked {links.ran}/{links.ran + links.skipped} "
-        f"artifact(s) (skipped {links.skipped})"
-    )
-    for name, path in sorted(plan.link_artifact_by_target.items()):
-        print(f"  {name}: {path}")
-    return 0
+    trace = TraceRecorder() if args.trace is not None else None
+    try:
+        result = asyncio.run(
+            run_link(plan, jobs=args.jobs, force=args.force, trace=trace)
+        )
+        links = result.links
+        print(
+            f"linked {links.ran}/{links.ran + links.skipped} "
+            f"artifact(s) (skipped {links.skipped})"
+        )
+        for name, path in sorted(plan.link_artifact_by_target.items()):
+            print(f"  {name}: {path}")
+        return 0
+    finally:
+        if trace is not None:
+            assert args.trace is not None
+            trace.write(args.trace)
+            print(f"wrote trace: {args.trace}")
 
 
 def _plan_from_args(args: argparse.Namespace) -> BuildPlan:

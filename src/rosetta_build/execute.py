@@ -20,6 +20,7 @@ from rosetta_build.schedule import (
     build_edges,
     run_edges,
 )
+from rosetta_build.trace import TraceRecorder
 from rosetta_build.wheel import WheelBuildError, build_sdist, build_wheel
 
 __all__ = [
@@ -74,6 +75,7 @@ async def run_build(
     *,
     jobs: int | None = None,
     force: bool = False,
+    trace: TraceRecorder | None = None,
 ) -> BuildRunResult:
     """Run compile and wheel edges with dirty checks and parallelism."""
     workers = _default_jobs(jobs)
@@ -93,6 +95,7 @@ async def run_build(
         run_edge=run_compile_edge,
         jobs=workers,
         force=force,
+        trace=trace,
     )
     wheel_result = await run_edges(
         build_edges(
@@ -101,6 +104,7 @@ async def run_build(
         run_edge=run_wheel_edge,
         jobs=workers,
         force=force,
+        trace=trace,
     )
     return BuildRunResult(compiles=compile_result, wheels=wheel_result)
 
@@ -110,6 +114,7 @@ async def run_link(
     *,
     jobs: int | None = None,
     force: bool = False,
+    trace: TraceRecorder | None = None,
 ) -> LinkRunResult:
     """Run link edges with dirty checks and parallelism."""
     workers = _default_jobs(jobs)
@@ -125,6 +130,7 @@ async def run_link(
         run_edge=run_link_edge,
         jobs=workers,
         force=force,
+        trace=trace,
     )
     return LinkRunResult(links=result)
 

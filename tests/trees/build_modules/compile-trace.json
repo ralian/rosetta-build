@@ -1,0 +1,62 @@
+[
+  {
+    "name": "process_name",
+    "ph": "M",
+    "pid": 1,
+    "args": {
+      "name": "rosetta-build"
+    }
+  },
+  {
+    "name": "thread_name",
+    "ph": "M",
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "name": "job 0"
+    }
+  },
+  {
+    "name": "compile:math:/home/ralian/rosetta-build/tests/trees/build_modules/modules/math/math.cppm",
+    "cat": "compile",
+    "ph": "X",
+    "ts": 667.8230129182339,
+    "dur": 41598.03700167686,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "outputs": [
+        "/tmp/tmp.hyX1LJgTQi/build_modules/obj/math/math.cppm.o",
+        "/tmp/tmp.hyX1LJgTQi/build_modules/bmi/math.gcm"
+      ]
+    }
+  },
+  {
+    "name": "compile:app:/home/ralian/rosetta-build/tests/trees/build_modules/apps/app/main.cpp",
+    "cat": "compile",
+    "ph": "X",
+    "ts": 42377.60597607121,
+    "dur": 38265.903014689684,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "outputs": [
+        "/tmp/tmp.hyX1LJgTQi/build_modules/obj/app/main.cpp.o"
+      ]
+    }
+  },
+  {
+    "name": "compile:math_impl:/home/ralian/rosetta-build/tests/trees/build_modules/modules/math_impl/math.cpp",
+    "cat": "compile",
+    "ph": "X",
+    "ts": 80717.12200762704,
+    "dur": 37784.13595864549,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "outputs": [
+        "/tmp/tmp.hyX1LJgTQi/build_modules/obj/math_impl/math.cpp.o"
+      ]
+    }
+  }
+]

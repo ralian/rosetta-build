@@ -10,6 +10,7 @@ from pathlib import Path
 
 from rosetta_build.depfile import depfile_for_object, parse_depfile
 from rosetta_build.plan import BuildPlan, CompileStep, LinkStep, WheelStep
+from rosetta_build.trace import TraceRecorder, edge_category
 
 __all__ = [
     "BuildEdge",
@@ -186,6 +187,7 @@ async def run_edges(
     run_edge: Callable[[BuildEdge], Awaitable[None]],
     jobs: int | None = None,
     force: bool = False,
+    trace: TraceRecorder | None = None,
 ) -> ScheduleResult:
     """Run dirty edges when ready, up to ``jobs`` at a time."""
     if not edges:
@@ -197,6 +199,7 @@ async def run_edges(
 
     dependents, indegree, by_id = _dependents_by_producer(edges)
     semaphore = asyncio.Semaphore(workers)
+    free_tids = list(range(workers))
     ran = 0
     skipped = 0
     lock = asyncio.Lock()
@@ -209,7 +212,25 @@ async def run_edges(
                 edge = by_id[edge_id]
                 if is_dirty(edge, force=force):
                     async with semaphore:
-                        await run_edge(edge)
+                        async with lock:
+                            tid = free_tids.pop()
+                        try:
+                            if trace is None:
+                                await run_edge(edge)
+                            else:
+                                ts = trace.now_us()
+                                await run_edge(edge)
+                                trace.complete(
+                                    name=edge.id,
+                                    cat=edge_category(edge.id),
+                                    tid=tid,
+                                    ts=ts,
+                                    dur=trace.now_us() - ts,
+                                    args={"outputs": [str(p) for p in edge.outputs]},
+                                )
+                        finally:
+                            async with lock:
+                                free_tids.append(tid)
                     async with lock:
                         ran += 1
                 else:

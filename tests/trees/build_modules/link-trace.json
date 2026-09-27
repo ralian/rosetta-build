@@ -1,0 +1,33 @@
+[
+  {
+    "name": "process_name",
+    "ph": "M",
+    "pid": 1,
+    "args": {
+      "name": "rosetta-build"
+    }
+  },
+  {
+    "name": "thread_name",
+    "ph": "M",
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "name": "job 0"
+    }
+  },
+  {
+    "name": "link:app",
+    "cat": "link",
+    "ph": "X",
+    "ts": 761.5510257892311,
+    "dur": 61988.86700440198,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "outputs": [
+        "/tmp/tmp.hyX1LJgTQi/build_modules/artifacts/app"
+      ]
+    }
+  }
+]

@@ -1,0 +1,47 @@
+[
+  {
+    "name": "process_name",
+    "ph": "M",
+    "pid": 1,
+    "args": {
+      "name": "rosetta-build"
+    }
+  },
+  {
+    "name": "thread_name",
+    "ph": "M",
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "name": "job 0"
+    }
+  },
+  {
+    "name": "compile:core:/home/ralian/rosetta-build/tests/trees/build_non_modules/libs/core/core.cpp",
+    "cat": "compile",
+    "ph": "X",
+    "ts": 660.6999668292701,
+    "dur": 42034.05702719465,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "outputs": [
+        "/tmp/tmp.hyX1LJgTQi/build_non_modules/obj/core/core.cpp.o"
+      ]
+    }
+  },
+  {
+    "name": "compile:hello:/home/ralian/rosetta-build/tests/trees/build_non_modules/apps/hello/main.cpp",
+    "cat": "compile",
+    "ph": "X",
+    "ts": 42781.010968610644,
+    "dur": 38794.74202403799,
+    "pid": 1,
+    "tid": 0,
+    "args": {
+      "outputs": [
+        "/tmp/tmp.hyX1LJgTQi/build_non_modules/obj/hello/main.cpp.o"
+      ]
+    }
+  }
+]
